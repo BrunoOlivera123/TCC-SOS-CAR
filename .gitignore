@@ -1,0 +1,17 @@
+# Dependências
+node_modules/
+
+# SEGREDOS — nunca versionar nem enviar em zip:
+# o .env tem senha do banco, senhas de e-mail e do admin.
+.env
+.env.*
+!.env.example
+
+# Certificados HTTPS de desenvolvimento (a chave privada não deve circular)
+.certs/
+*.pem
+*.key
+
+# Anotacoes com credenciais e backups (o zip antigo contem um .env dentro)
+banco.txt
+*.zip

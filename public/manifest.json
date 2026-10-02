@@ -1,0 +1,14 @@
+{
+  "name": "SOS Car — Assistência automotiva",
+  "short_name": "SOS Car",
+  "description": "Peça socorro automotivo perto de você ou atenda quem precisa, com acompanhamento em tempo real.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#FBCA29",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "img/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

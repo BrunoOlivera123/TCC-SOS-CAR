@@ -1,0 +1,752 @@
+<!--
+  SOS Car — página única (SPA simples, sem framework).
+
+  Todas as telas do sistema (carregamento, autenticação, recuperação de
+  senha, painel do cliente, painel do prestador, configurações, admin,
+  páginas institucionais) já estão escritas aqui. Quem decide qual delas
+  fica visível é o JavaScript (public/js/app.js), através da função
+  mostrarTela() — que adiciona/remove a classe "oculta" de cada
+  <section> registrada no objeto "telas". Não há navegação de verdade
+  entre páginas (nem recarrega, nem muda de URL).
+-->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Fontes e mapa vêm de outros domínios: eles recebem só a origem do site, nunca o endereço completo da página. -->
+  <meta name="referrer" content="strict-origin" />
+  <meta name="theme-color" content="#FBCA29" />
+  <meta name="description" content="SOS Car — peça socorro automotivo perto de você ou atenda quem precisa, com acompanhamento do chamado em tempo real." />
+  <title>SOS Car — Socorro automotivo</title>
+  <link rel="icon" type="image/svg+xml" href="img/logo.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="img/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  <!-- Leaflet: biblioteca de mapa usada no card do chamado (ver public/js/mapa.js). Tiles do OpenStreetMap, sem chave de API. -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Tela de carregamento: única visível por padrão (todas as outras já
+       nascem com "oculta"). app.js troca para a tela certa assim que
+       terminar de verificar sessão salva + carregar categorias. -->
+  <div id="tela-carregamento" class="tela-carregamento">
+    <img src="img/logo.png" alt="SOS Car" width="280" height="140" />
+    <span class="spinner" aria-hidden="true"></span>
+    <p class="texto-auxiliar">Carregando…</p>
+  </div>
+
+  <!-- Popup obrigatório: aparece ao fazer o 1º pedido (cliente) ou aceitar o 1º chamado (prestador) em conta sem CPF/telefone. -->
+  <div id="modal-perfil" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-perfil-titulo">
+    <div class="modal-conteudo">
+      <h2 id="modal-perfil-titulo">Complete seu cadastro</h2>
+      <p class="texto-auxiliar" id="modal-perfil-texto">Precisamos de mais alguns dados para continuar.</p>
+      <form id="form-perfil" class="formulario" novalidate>
+        <p id="perfil-erro" class="mensagem-erro oculto" role="alert"></p>
+        <label id="perfil-campo-cpf">CPF
+          <input type="text" name="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off" />
+        </label>
+        <label id="perfil-campo-telefone">Telefone com DDD
+          <input type="tel" name="telefone" placeholder="(00) 00000-0000" autocomplete="tel" />
+        </label>
+        <div class="modal-acoes">
+          <button type="button" class="botao-secundario" id="perfil-cancelar">Agora não</button>
+          <button type="submit" class="botao-primario">Salvar e continuar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-confirmar-chamado" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-chamado-titulo">
+    <div class="modal-conteudo modal-chamado-conteudo">
+      <h2 id="modal-chamado-titulo">Conferir pedido</h2>
+      <dl id="modal-chamado-detalhes" class="detalhes"></dl>
+      <p class="texto-auxiliar">Confira as informações antes de aceitar este chamado.</p>
+      <div class="modal-acoes">
+        <button type="button" class="botao-secundario" id="modal-chamado-cancelar">Voltar</button>
+        <button type="button" class="botao-primario" id="modal-chamado-aceitar">Aceitar pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra fixa no topo: aparece em qualquer tela (login ou logado). -->
+  <header class="topo">
+    <div class="marca">
+      <img src="img/logo.png" alt="SOS Car" class="marca-icone" width="118" height="70" />
+      <span class="marca-nome">SOS <strong>Car</strong></span>
+    </div>
+    <div class="topo-acoes">
+      <!-- Alterna claro/escuro; lógica em public/js/theme.js -->
+      <button id="btn-tema" class="botao-icone" title="Alternar tema claro/escuro" aria-label="Alternar tema">
+        <svg class="icone-lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>
+        <svg class="icone-sol oculto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      </button>
+      <!-- Central de Notificações: só para cliente/prestador logado (controlado via JS) -->
+      <div class="notificacoes oculto" id="notificacoes">
+        <button type="button" id="btn-notificacoes" class="botao-icone botao-notificacoes" aria-label="Notificações" aria-haspopup="dialog" aria-expanded="false" aria-controls="painel-notificacoes" title="Notificações">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="contador-notificacoes oculto" id="contador-notificacoes" aria-hidden="true">0</span>
+        </button>
+        <div class="painel-notificacoes oculto" id="painel-notificacoes" role="dialog" aria-label="Central de notificações">
+          <div class="painel-notificacoes-topo">
+            <strong>Notificações</strong>
+            <button type="button" class="botao-link" id="btn-marcar-todas-lidas">Marcar todas como lidas</button>
+          </div>
+          <ul class="lista-notificacoes" id="lista-notificacoes"></ul>
+          <p class="notificacoes-vazio" id="notificacoes-vazio">Nenhuma notificação por enquanto.</p>
+        </div>
+      </div>
+      <!-- Só aparece quando há alguém logado (controlado via JS) -->
+      <button id="btn-config" class="botao-secundario oculto">Configurações</button>
+      <button id="btn-sair" class="botao-secundario oculto">Sair</button>
+    </div>
+  </header>
+
+  <!-- ===================================================
+       TELA: AUTENTICAÇÃO
+  ==================================================== -->
+  <section id="tela-auth" class="tela oculta">
+    <div class="conteudo conteudo-auth">
+      <div class="auth-layout">
+        <div class="auth-intro">
+          <img src="img/logo.png" alt="" aria-hidden="true" class="auth-logo" width="520" height="240" />
+          <h1>Precisa de socorro no veículo?</h1>
+          <p class="subtitulo">Peça ajuda ou atenda quem precisa — rápido, simples e com acompanhamento em tempo real.</p>
+          <ul class="auth-destaques">
+            <li class="destaque">
+              <span class="destaque-icone" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
+              </span>
+              <span>Atendimento rápido, perto de você</span>
+            </li>
+            <li class="destaque">
+              <span class="destaque-icone" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+              </span>
+              <span>Prestadores por categoria: mecânico, borracheiro, auto elétrica e guincho</span>
+            </li>
+            <li class="destaque">
+              <span class="destaque-icone" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.6-4.6 4 1.4 6-5.5-3.2L6.5 19.2l1.4-6-4.6-4 6.1-.6L12 3z"/></svg>
+              </span>
+              <span>Acompanhe o status e avalie o atendimento</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="cartao cartao-auth">
+          <!-- Abas: Sou cliente / Sou prestador -->
+          <div class="segmentado" id="seg-perfil">
+            <button type="button" class="segmentado-opcao ativo" data-perfil="cliente">Sou cliente</button>
+            <button type="button" class="segmentado-opcao" data-perfil="prestador">Sou prestador</button>
+          </div>
+
+          <!-- Abas: Entrar / Criar conta -->
+          <div class="segmentado segmentado-secundario" id="seg-modo">
+            <button type="button" class="segmentado-opcao ativo" data-modo="login">Entrar</button>
+            <button type="button" class="segmentado-opcao" data-modo="cadastro">Criar conta</button>
+          </div>
+
+          <!-- Mensagem de erro de login/cadastro (preenchida via JS) -->
+          <p id="auth-erro" class="mensagem-erro oculto"></p>
+
+          <!-- Formulário de login -->
+          <form id="form-login" class="formulario">
+            <label>Email
+              <input type="email" name="email" required autocomplete="email" />
+            </label>
+            <label>Senha
+              <div class="campo-senha">
+                <input type="password" name="senha" required autocomplete="current-password" />
+                <button type="button" class="botao-olho" data-toggle-senha aria-label="Mostrar senha" title="Mostrar senha">
+                  <svg class="icone-olho" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path class="traço-olho" d="M4 4L20 20"/>
+                  </svg>
+                </button>
+              </div>
+            </label>
+            <button type="submit" class="botao-primario">Entrar</button>
+            <button type="button" class="botao-link" id="btn-esqueci-senha">Esqueceu sua senha?</button>
+          </form>
+
+          <!-- Formulário de cadastro (serve para cliente e prestador) -->
+          <form id="form-cadastro" class="formulario oculto">
+            <label>Nome completo
+              <input type="text" name="nome" required />
+            </label>
+            <label>Email
+              <input type="email" name="email" required autocomplete="email" />
+            </label>
+            <label>Senha
+              <div class="campo-senha">
+                <input type="password" name="senha" required minlength="4" autocomplete="new-password" />
+                <button type="button" class="botao-olho" data-toggle-senha aria-label="Mostrar senha" title="Mostrar senha">
+                  <svg class="icone-olho" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path class="traço-olho" d="M4 4L20 20"/>
+                  </svg>
+                </button>
+              </div>
+            </label>
+            <div class="formulario-linha">
+              <label><span class="rotulo-campo">CPF</span>
+                <input type="text" name="cpf" required placeholder="000.000.000-00" />
+              </label>
+              <label><span class="rotulo-campo">Telefone <span class="opcional">(opcional)</span></span>
+                <input type="tel" name="telefone" placeholder="(00) 00000-0000" />
+              </label>
+            </div>
+            <!-- Só relevante (e só obrigatório) quando o perfil escolhido é "prestador" -->
+            <label id="campo-categoria" class="oculto">Categoria de atendimento
+              <select name="categoriaId" class="select-oculto"></select>
+              <div class="categoria-cards"></div>
+            </label>
+            <button type="submit" class="botao-primario">Criar conta</button>
+          </form>
+
+          <!-- Login com Google: só aparece se o servidor tiver GOOGLE_CLIENT_ID (ver app.js, iniciarGoogle) -->
+          <div id="google-area" class="google-area oculto">
+            <div class="divisor-ou"><span>ou</span></div>
+            <div id="google-botao" class="google-botao"></div>
+            <p class="texto-auxiliar google-aviso" id="google-aviso">Conta nova pelo Google? Você pode navegar já; CPF e telefone só são pedidos no primeiro pedido ou aceite.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       TELA: ESQUECI MINHA SENHA
+  ==================================================== -->
+  <section id="tela-esqueci-senha" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <h2>Esqueceu sua senha?</h2>
+        <p class="subtitulo">Informe seu email cadastrado — Enviaremos um link para você criar uma nova senha.</p>
+        <form id="form-esqueci-senha" class="formulario">
+          <label>Email
+            <input type="email" name="email" required autocomplete="email" placeholder="seu@email.com" />
+          </label>
+          <button type="submit" class="botao-primario">Enviar link de redefinição</button>
+        </form>
+        <p id="esqueci-senha-sucesso" class="mensagem-sucesso oculto"></p>
+        <button type="button" class="botao-secundario btn-voltar">Voltar para o login</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       TELA: REDEFINIR SENHA
+       Só é aberta quando a página carrega com "?tipo=...&token=..." na
+       URL (link recebido por e-mail) — ver app.js, função iniciar().
+  ==================================================== -->
+  <section id="tela-redefinir-senha" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <h2>Criar nova senha</h2>
+        <p class="subtitulo">Escolha uma nova senha para a sua conta.</p>
+        <p id="redefinir-senha-erro" class="mensagem-erro oculto"></p>
+        <form id="form-redefinir-senha" class="formulario">
+          <label>Nova senha
+            <input type="password" name="novaSenha" required minlength="4" autocomplete="new-password" />
+          </label>
+          <button type="submit" class="botao-primario">Redefinir senha</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <main class="conteudo">
+
+    <!-- ===================================================
+         TELA: CLIENTE
+    ==================================================== -->
+    <section id="tela-cliente" class="tela oculta dashboard-cliente">
+      <div class="cliente-cabecalho">
+        <h1>Olá, <span id="cliente-nome"></span></h1>
+        <p class="subtitulo">Aqui você pede socorro e acompanha o atendimento.</p>
+      </div>
+
+      <div class="cliente-grid">
+        <div class="cliente-principal">
+          <!-- Bloco 1: nenhum chamado em andamento -->
+          <div id="cliente-sem-chamado" class="cartao">
+            <h2>Precisa de socorro agora?</h2>
+            <form id="form-chamado" class="formulario">
+              <label>Tipo de problema
+                <select name="categoriaId" id="chamado-categoria" class="select-oculto"></select>
+                <div class="categoria-cards"></div>
+              </label>
+              <div class="formulario-linha">
+                <label><span class="rotulo-campo">Endereço</span>
+                  <input type="text" name="endereco" placeholder="Rua, número, bairro" required />
+                </label>
+                <label><span class="rotulo-campo">Descrição do problema <span class="opcional">(opcional)</span></span>
+                  <textarea name="descricao" rows="3" placeholder="Ex.: pneu furou, sem estepe"></textarea>
+                </label>
+              </div>
+              <!-- Usa a Geolocation API do navegador; ver public/js/app.js -->
+              <div class="formulario-linha formulario-linha-botoes">
+                <button type="button" id="btn-usar-localizacao" class="botao-secundario botao-com-icone">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s7-7.58 7-12A7 7 0 1 0 5 10c0 4.42 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                  Usar minha localização
+                </button>
+                <button type="button" id="btn-localizar-endereco" class="botao-secundario">
+                  Localizar endereço no mapa
+                </button>
+              </div>
+              <p id="localizacao-status" class="texto-auxiliar"></p>
+              <button type="submit" class="botao-primario">Solicitar socorro</button>
+            </form>
+          </div>
+
+          <!-- Bloco 2: chamado em andamento (ou já concluído/cancelado, ainda visível até sumir do "atual") -->
+          <div id="cliente-com-chamado" class="cartao oculta">
+            <h2>Seu chamado</h2>
+            <!-- Estado atual em destaque (texto e cor mudam via JS a cada mudança de status) -->
+            <div class="status-banner" id="chamado-status-banner" role="status" aria-live="polite">
+              <strong class="status-banner-titulo" id="chamado-status-titulo"></strong>
+              <span class="status-banner-sub" id="chamado-status-sub"></span>
+            </div>
+            <!-- Trilha de progresso; classes "concluido"/"atual"/"cancelado" são aplicadas via JS -->
+            <ol class="progresso" id="progresso-chamado">
+              <li data-status="aberto">Solicitado</li>
+              <li data-status="aceito">A caminho</li>
+              <li data-status="em_andamento">No local</li>
+              <li data-status="concluido">Concluído</li>
+            </ol>
+            <dl class="detalhes" id="chamado-detalhes"></dl>
+            <!-- Linha do tempo do atendimento (eventos vindos do servidor) -->
+            <ol class="linha-tempo" id="chamado-linha-tempo" aria-label="Histórico do atendimento"></ol>
+            <button id="btn-cancelar-chamado" class="botao-perigo oculto">Cancelar chamado</button>
+            <!-- Só aparece quando o prestador (ou a administração) cancelou o atendimento -->
+            <button id="btn-fechar-cancelamento" class="botao-primario oculto">Fazer novo pedido</button>
+
+          </div>
+        </div>
+
+        <div class="cliente-lateral">
+          <!-- Histórico + Localização: um único cartão, uma única borda
+               externa (ver seção "Dashboard — Histórico + Localização"
+               do pedido de ajustes visuais). O mapa fica sempre presente
+               aqui; app.js só o preenche quando há um chamado ativo. -->
+          <div class="cartao cartao-historico-mapa">
+            <h2>Histórico</h2>
+            <ul class="lista-historico" id="cliente-historico"></ul>
+            <div class="divisor-cartao" aria-hidden="true"></div>
+            <h2>Localização</h2>
+            <div id="mapa-cliente" class="mapa-caixa mapa-caixa-lateral"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="modal-avaliacao" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-avaliacao-titulo">
+      <div class="modal-conteudo modal-avaliacao-conteudo">
+        <h2 id="modal-avaliacao-titulo">Avalie o atendimento</h2>
+        <form id="form-avaliacao" class="formulario">
+          <div class="estrelas" id="estrelas"></div>
+          <textarea name="comentario" rows="2" maxlength="500" placeholder="Comentário (opcional)"></textarea>
+          <small class="texto-auxiliar">Até 500 caracteres.</small>
+          <button type="submit" class="botao-primario">Enviar avaliação</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===================================================
+         TELA: PRESTADOR — Dashboard 100vh, grid 2x2
+    ==================================================== -->
+    <section id="tela-prestador" class="tela oculta dashboard-prestador">
+      
+      <!-- Cabeçalho: Saudação + Status de disponibilidade (lado a lado) -->
+      <div class="dash-cabecalho">
+        <div class="dash-saudacao">
+          <h1>Olá, <span id="prestador-nome"></span></h1>
+          <p class="subtitulo" id="prestador-categoria"></p>
+        </div>
+        <div class="dash-status-rapido">
+          <span id="disponivel-texto" class="status-badge">Indisponível</span>
+        </div>
+      </div>
+
+      <!-- Grid principal 2x2 -->
+      <div class="dash-grid">
+        
+        <!-- CÉLULA 1: STATUS (compacto) -->
+        <div class="dash-card dash-card-status">
+          <div class="card-header-compacto">
+            <h3>Status</h3>
+          </div>
+          <div class="card-conteudo-status">
+            <label class="interruptor">
+              <input type="checkbox" id="chk-disponivel" />
+              <span class="interruptor-trilho"></span>
+            </label>
+            <p class="texto-auxiliar" id="prestador-localizacao-status"></p>
+            <button type="button" id="btn-atualizar-chamados" class="botao-secundario botao-pequeno botao-atualizar" title="Atualizar chamados disponíveis">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16m0-5h5v5"/></svg>
+              <span>Atualizar</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- CÉLULA 2: CHAMADOS (destaque, maior) -->
+        <div class="dash-card dash-card-chamados">
+          <div class="card-header card-header-chamados">
+            <h3>Chamados disponíveis</h3>
+            <label class="ordenar-controle">
+              <span>Ordenar por</span>
+              <select id="ordenar-chamados" class="admin-filtro" aria-label="Ordenar chamados por">
+                <option value="proximos">Mais próximos</option>
+                <option value="recentes">Mais recentes</option>
+                <option value="antigos">Aguardando há mais tempo</option>
+              </select>
+            </label>
+          </div>
+          <div class="card-conteudo-chamados">
+            <!-- Card informativo (componente reutilizável: public/js/cartao-info.js) -->
+            <div id="prestador-cartao-info" class="cartao-info-area"></div>
+            <!-- Bloco vazio: nenhum chamado -->
+            <div id="prestador-sem-chamado" class="bloco-chamados">
+              <p id="sem-chamados-msg" class="estado-vazio">
+                <svg class="estado-vazio-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v6l-3 3H7l-3-3V4z"/><path d="M4 10v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9"/></svg>
+                <span id="sem-chamados-texto">Nenhum chamado disponível</span>
+                <small>Você será avisado quando surgir um novo</small>
+              </p>
+            </div>
+            <!-- Lista de chamados -->
+            <ul class="lista-chamados" id="lista-disponiveis"></ul>
+          </div>
+        </div>
+
+        <!-- CÉLULA 3: AVALIAÇÕES (resumo) -->
+        <div class="dash-card dash-card-avaliacoes">
+          <div class="card-header">
+            <h3>Minhas avaliações</h3>
+          </div>
+          <div class="card-conteudo-avaliacoes">
+            <div class="avaliacao-resumo" id="prestador-avaliacao-resumo"></div>
+            <button type="button" class="botao-link-modal" id="btn-ver-avaliacoes">Ver todas →</button>
+          </div>
+        </div>
+
+        <!-- CÉLULA 4: HISTÓRICO (últimos 3-4) -->
+        <div class="dash-card dash-card-historico">
+          <div class="card-header">
+            <h3>Histórico recente</h3>
+          </div>
+          <div class="card-conteudo-historico">
+            <ul class="lista-historico lista-historico-compacta" id="prestador-historico"></ul>
+            <button type="button" class="botao-link-modal" id="btn-ver-historico">Ver histórico completo →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chamado em andamento: aparece como overlay/modal quando há -->
+      <div id="prestador-com-chamado" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-atendimento-titulo">
+        <div class="modal-conteudo modal-grande">
+          <h2 id="modal-atendimento-titulo">Atendimento em andamento</h2>
+          <div class="modal-corpo">
+            <dl class="detalhes" id="prestador-chamado-detalhes"></dl>
+            <ol class="linha-tempo" id="prestador-linha-tempo" aria-label="Histórico do atendimento"></ol>
+            <div id="mapa-prestador" class="mapa-caixa"></div>
+          </div>
+          <!-- Erro de uma ação do atendimento, mostrado aqui dentro (o modal cobre a tela) -->
+          <p id="prestador-acao-erro" class="mensagem-erro oculto" role="alert"></p>
+          <!-- Só os botões do estado atual aparecem (app.js: renderizarChamadoPrestador) -->
+          <div class="modal-acoes">
+            <button id="btn-iniciar" class="botao-secundario oculto">📍 Cheguei ao local</button>
+            <button id="btn-concluir" class="botao-primario oculto">✓ Concluir atendimento</button>
+            <button id="btn-cancelar-prestador" class="botao-perigo oculto">✕ Cancelar atendimento</button>
+            <span id="prestador-estado-final" class="estado-final oculto" role="status"></span>
+            <button id="btn-voltar-pedidos" class="botao-secundario oculto">Voltar aos pedidos</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: Ver todas as avaliações -->
+      <div id="modal-avaliacoes" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-avaliacoes-titulo">
+        <div class="modal-conteudo modal-grande">
+          <button class="modal-fechar" aria-label="Fechar">✕</button>
+          <h2 id="modal-avaliacoes-titulo">Minhas avaliações</h2>
+          <div class="modal-corpo">
+            <ul class="lista-historico" id="prestador-lista-avaliacoes"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: Ver histórico completo -->
+      <div id="modal-historico" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-historico-titulo">
+        <div class="modal-conteudo modal-grande">
+          <button class="modal-fechar" aria-label="Fechar">✕</button>
+          <h2 id="modal-historico-titulo">Histórico de atendimentos</h2>
+          <div class="modal-corpo">
+            <ul class="lista-historico" id="prestador-historico-completo"></ul>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Tela de Configurações do usuário -->
+  <section id="tela-config" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <h2>Configurações da conta</h2>
+        <p class="subtitulo">Altere seus dados pessoais abaixo, Deixe o campo de senha em branco para manter a senha atual.</p>
+        <form id="form-configuracoes" class="formulario">
+          <label>Nome completo
+            <input type="text" name="nome" required />
+          </label>
+          <label><span class="rotulo-campo">Telefone <span class="opcional">(opcional)</span></span>
+            <input type="tel" name="telefone" />
+          </label>
+          <label id="campo-categoria-config" class="oculto">Categoria de atendimento
+            <select name="categoriaId" class="select-oculto"></select>
+            <div class="categoria-cards"></div>
+            <span class="texto-auxiliar">A alteração vale para os próximos chamados.</span>
+          </label>
+          <label id="campo-raio-config" class="oculto">Raio de atendimento
+            <span class="campo-com-unidade">
+              <input type="number" name="raioKm" min="1" max="100" step="1" inputmode="numeric" />
+              <span class="campo-unidade" aria-hidden="true">km</span>
+            </span>
+            <span class="texto-auxiliar">Distância máxima, em linha reta, entre você e o cliente para receber chamados (de 1 a 100 km).</span>
+          </label>
+          <!-- Conta criada pelo Google não tem senha: mostra só este aviso (ver app.js, btnConfig) -->
+          <p id="aviso-sem-senha-config" class="texto-auxiliar oculto">Sua conta entra pelo Google e não tem senha. Para criar uma, saia e use "Esqueceu sua senha?".</p>
+          <label id="campo-senha-atual-config"><span class="rotulo-campo">Senha atual <span class="opcional">(só para trocar a senha)</span></span>
+            <input type="password" name="senhaAtual" autocomplete="current-password" />
+          </label>
+          <label id="campo-senha-nova-config"><span class="rotulo-campo">Nova senha <span class="opcional">(opcional)</span></span>
+            <input type="password" name="senha" minlength="4" autocomplete="new-password" placeholder="Deixe em branco para manter" />
+          </label>
+          <div class="acoes">
+            <button type="submit" class="botao-primario">Salvar</button>
+            <button type="button" id="btn-config-cancel" class="botao-secundario">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       TELA: ADMINISTRAÇÃO
+       Sem cadastro público — só a conta fixa definida por variável de
+       ambiente (ver server/server.js, ADMIN_EMAIL/ADMIN_SENHA).
+  ==================================================== -->
+  <section id="tela-admin" class="tela tela-aux oculta">
+    <div class="conteudo">
+      <div id="admin-login" class="cartao cartao-auth">
+        <h2>Acesso administrativo</h2>
+        <p id="admin-login-erro" class="mensagem-erro oculto"></p>
+        <form id="form-admin-login" class="formulario">
+          <label>Email
+            <input type="email" name="email" required autocomplete="username" />
+          </label>
+          <label>Senha
+            <input type="password" name="senha" required autocomplete="current-password" />
+          </label>
+          <button type="submit" class="botao-primario">Entrar</button>
+        </form>
+        <button type="button" class="botao-secundario btn-voltar">Voltar</button>
+      </div>
+
+      <div id="admin-painel" class="pilha oculta">
+        <div class="saudacao">
+          <h1>Painel administrativo</h1>
+          <p class="subtitulo">Visão geral do sistema.</p>
+        </div>
+
+        <div class="admin-linha-superior">
+          <div class="stat-grid">
+            <div class="stat-card"><span class="stat-numero" id="stat-clientes">0</span><span class="stat-rotulo">Clientes</span></div>
+            <div class="stat-card"><span class="stat-numero" id="stat-prestadores">0</span><span class="stat-rotulo">Prestadores</span></div>
+            <div class="stat-card"><span class="stat-numero" id="stat-chamados">0</span><span class="stat-rotulo">Chamados totais</span></div>
+            <div class="stat-card"><span class="stat-numero" id="stat-chamados-abertos">0</span><span class="stat-rotulo">Em andamento</span></div>
+          </div>
+
+          <div class="cartao">
+            <h2>Categorias de atendimento</h2>
+            <ul class="lista-categorias" id="admin-lista-categorias"></ul>
+          </div>
+        </div>
+
+        <div class="cartao">
+          <div class="cartao-cabecalho">
+            <h2>Chamados</h2>
+            <select id="admin-filtro-status" class="admin-filtro">
+              <option value="">Todos os status</option>
+              <option value="aberto">Aberto</option>
+              <option value="aceito">Aceito (a caminho)</option>
+              <option value="em_andamento">No local</option>
+              <option value="concluido">Concluído</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="tabela-caixa">
+            <table class="tabela" id="admin-tabela-chamados">
+              <thead>
+                <tr><th>Cliente</th><th>Prestador</th><th>Categoria</th><th>Status</th><th>Aberto em</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="cartao">
+          <h2>Usuários cadastrados</h2>
+          <div class="tabela-caixa">
+            <table class="tabela" id="admin-tabela-usuarios">
+              <thead>
+                <tr><th>Nome</th><th>Email</th><th>Tipo</th><th>Categoria</th><th>Status</th><th>Ações</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       PÁGINAS INSTITUCIONAIS
+  ==================================================== -->
+  <section id="tela-sobre" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <h2>Sobre o SOS Car</h2>
+        <p>O SOS Car conecta quem precisa de socorro automotivo a prestadores de serviço — mecânicos, borracheiros e auto elétricas — disponíveis na região, de forma rápida e transparente.</p>
+        <p>O cliente descreve o problema e sua localização; todos os prestadores da categoria certa recebem o chamado ao mesmo tempo, e o primeiro que aceitar assume o atendimento. Ao final, o cliente acompanha cada etapa e avalia o serviço prestado.</p>
+        <p class="texto-auxiliar">Projeto desenvolvido como Trabalho de Conclusão de Curso em Desenvolvimento de Sistemas.</p>
+        <button type="button" class="botao-secundario btn-voltar">Voltar</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tela-ajuda" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <h2>Central de ajuda</h2>
+        <p class="subtitulo">Dúvidas frequentes sobre como usar o SOS Car.</p>
+        <details class="faq-item">
+          <summary>Como peço socorro?</summary>
+          <p>Entre como cliente, escolha o tipo de problema, informe o endereço (ou use sua localização) e toque em "Solicitar socorro". Você acompanha o status em tempo real na mesma tela.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Como saber quem irá me atender?</summary>
+          <p>Assim que um prestador aceita o chamado, o nome e o telefone dele aparecem na tela, junto com a nota média dele em atendimentos anteriores.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Posso cancelar um chamado?</summary>
+          <p>Sim, enquanto ninguém aceitou, ou em até 1 minuto após o aceite de um prestador. Depois desse prazo, entre em contato diretamente com o prestador pelo telefone informado.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Como funciona a avaliação?</summary>
+          <p>Depois que o prestador marca o atendimento como concluído, você pode dar uma nota de 1 a 5 estrelas e deixar um comentário opcional. Essa nota passa a compor a média pública do prestador.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Sou prestador — como recebo chamados?</summary>
+          <p>Cadastre-se escolhendo sua categoria de atendimento, ative o interruptor "Disponível" e permita o acesso à localização. Os chamados abertos na sua categoria e região aparecerão na lista para você aceitar.</p>
+        </details>
+        <button type="button" class="botao-secundario btn-voltar">Voltar</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tela-termos" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <h2>Termos de Uso</h2>
+        <p class="texto-auxiliar">Última atualização: 2026.</p>
+        <p>Ao usar o SOS Car, cliente e prestador concordam que a plataforma apenas conecta as partes — o atendimento em si (qualidade do serviço, preço acordado, prazo) é combinado diretamente entre cliente e prestador.</p>
+        <p>É proibido cadastrar dados falsos, tentar burlar a regra de aceite de chamados, ou usar a plataforma para qualquer finalidade ilícita. Contas que violarem estas regras podem ser suspensas.</p>
+        <p>O SOS Car pode alterar estes termos a qualquer momento; o uso continuado da plataforma após alterações representa concordância com a nova versão.</p>
+        <button type="button" class="botao-secundario btn-voltar">Voltar</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tela-privacidade" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <h2>Política de Privacidade</h2>
+        <p class="texto-auxiliar">Última atualização: 2026.</p>
+        <p>Coletamos apenas os dados necessários para o funcionamento do serviço: nome, email, CPF e telefone no cadastro; localização (GPS ou endereço informado) ao abrir um chamado ou ativar a disponibilidade como prestador.</p>
+        <p>Sua senha nunca é armazenada em texto puro — apenas um hash criptográfico irreversível. Os dados de contato de cliente e prestador só ficam visíveis um para o outro depois que um chamado é aceito, nunca antes.</p>
+        <p>Não compartilhamos seus dados com terceiros para fins de publicidade. Você pode solicitar a atualização dos seus dados a qualquer momento na tela de Configurações.</p>
+        <button type="button" class="botao-secundario btn-voltar">Voltar</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="rodape">
+    <nav class="rodape-links">
+      <a href="#" data-tela="sobre">Sobre</a>
+      <a href="#" data-tela="ajuda">Ajuda</a>
+      <a href="#" data-tela="termos">Termos de Uso</a>
+      <a href="#" data-tela="privacidade">Privacidade</a>
+      <a href="#" id="link-admin" data-tela="admin">Acesso administrativo</a>
+    </nav>
+    <p>© 2026 SOS Car — Assistência automotiva</p>
+  </footer>
+
+  <!-- Central de notificações (toasts) e modal de confirmação genérico;
+       populados/controlados via public/js/app.js (funções toast() e
+       confirmar()), substituindo alert()/confirm() nativos do navegador. -->
+  <div id="modal-confirmar" class="modal oculto" role="alertdialog" aria-modal="true" aria-labelledby="modal-confirmar-texto">
+    <div class="modal-conteudo">
+      <p id="modal-confirmar-texto"></p>
+      <div class="modal-acoes">
+        <button type="button" class="botao-secundario" id="modal-confirmar-cancelar">Cancelar</button>
+        <button type="button" class="botao-perigo" id="modal-confirmar-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cancelamento do atendimento pelo prestador: confirmação + motivo. Os
+       valores dos rádios são os códigos aceitos pelo servidor
+       (MOTIVOS_CANCELAMENTO em server/server.js). -->
+  <div id="modal-cancelar-atendimento" class="modal oculto" role="alertdialog" aria-modal="true" aria-labelledby="modal-cancelar-titulo">
+    <div class="modal-conteudo">
+      <h3 id="modal-cancelar-titulo" class="modal-cancelar-titulo">Tem certeza que deseja cancelar este atendimento?</h3>
+      <p class="texto-auxiliar">O cliente será avisado e o chamado ficará como cancelado no histórico.</p>
+      <fieldset class="motivos-cancelamento">
+        <legend>Motivo do cancelamento</legend>
+        <label class="motivo-opcao"><input type="radio" name="motivo-cancelamento" value="nao_consegui_chegar" /> Não consegui chegar ao local</label>
+        <label class="motivo-opcao"><input type="radio" name="motivo-cancelamento" value="problema_veiculo" /> Problema no veículo/equipamento</label>
+        <label class="motivo-opcao"><input type="radio" name="motivo-cancelamento" value="cliente_ausente" /> Cliente não estava no local</label>
+        <label class="motivo-opcao"><input type="radio" name="motivo-cancelamento" value="servico_impossivel" /> Serviço não pode ser realizado</label>
+        <label class="motivo-opcao"><input type="radio" name="motivo-cancelamento" value="outro" /> Outro</label>
+      </fieldset>
+      <textarea id="motivo-cancelamento-detalhe" rows="2" maxlength="300" class="oculto" placeholder="Descreva o motivo" aria-label="Descrição do motivo"></textarea>
+      <p id="modal-cancelar-erro" class="mensagem-erro oculto" role="alert"></p>
+      <div class="modal-acoes">
+        <button type="button" class="botao-secundario" id="modal-cancelar-voltar">Voltar</button>
+        <button type="button" class="botao-perigo" id="modal-cancelar-confirmar">Confirmar cancelamento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Depois dos modais, para os avisos (toast) ficarem por cima deles -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Ordem importa: theme.js e api.js definem coisas que app.js usa -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/masks.js"></script>
+  <script src="js/mapa.js"></script>
+  <script src="js/animacoes.js"></script>
+  <script src="js/cartao-info.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

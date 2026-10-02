@@ -1,0 +1,2996 @@
+/* =================================================================
+   Estilos do SOS Car — identidade amarelo/âmbar, cinza e branco.
+
+   Tema claro/escuro: as cores nunca são escritas soltas nas regras
+   abaixo, sempre através de variáveis CSS (--nome-da-variavel),
+   declaradas uma vez em :root (tema claro, padrão) e redeclaradas em
+   :root[data-tema='escuro'] com outros valores. Quem decide qual
+   conjunto vale é o atributo "data-tema" da tag <html>, controlado por
+   public/js/theme.js.
+================================================================= */
+
+:root {
+  color-scheme: light dark; /* avisa o navegador para estilizar coisas nativas (scrollbar, etc.) nos dois temas */
+
+  /* ---- Paleta principal ---- */
+  --primary: #FBCA29;
+  --primary-light: #FDE68A;
+  --primary-dark: #D9A400;
+  --primary-soft: #FFF8D9;
+
+  --accent: #FBCA29;
+  --accent-hover: #E0A800;
+  --accent-soft: #FFF8D9;
+
+  --background: #F6F8FB;
+  --background-secondary: #F1F5F9;
+  --surface: #FFFFFF;
+  --border: #DCE4EE;
+
+  --text-primary: #0F2747;
+  --text-secondary: #58708D;
+  --text-muted: #94A3B8;
+
+  --success: #22C55E;
+  --success-soft: #F0FDF4;
+  --error: #EF4444;
+  --error-soft: #FEF2F2;
+
+  --shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.07);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.10);
+  --shadow-xl: 0 20px 48px rgba(15, 23, 42, 0.16);
+  --glow-opacidade: 0.10;
+
+  --fonte: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --fonte-titulo: 'Sora', var(--fonte);
+
+  --dur: 200ms; /* duração padrão das transições/microinterações */
+  --ease-suave: cubic-bezier(0.22, 0.8, 0.24, 1); /* desacelera no final, sem bounce */
+  --linha-marca: #1E5BB8; /* azul da linha da logo (ajuste se necessário) */
+}
+
+.tela-carregamento img {
+  width: min(82vw, 280px);
+  height: 140px;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Tema escuro: mais cinza escuro com toque dourado discreto. */
+:root[data-tema='escuro'] {
+  --primary: #D4A933;
+  --primary-light: #E8C868;
+  --primary-dark: #B98600;
+  --primary-soft: rgba(212, 169, 51, 0.10);
+
+  --accent: #D8AF45;
+  --accent-hover: #BC8E12;
+  --accent-soft: rgba(216, 175, 69, 0.10);
+
+  --background: #141414;
+  --background-secondary: #1C1C1C;
+  --surface: #222222;
+  --border: #3A3A3A;
+
+  --text-primary: #F2EFE9;
+  --text-secondary: #D3C7AE;
+  --text-muted: #A89A7A;
+
+  --success: #7CBF67;
+  --success-soft: rgba(124, 191, 103, 0.10);
+  --error: #E77663;
+  --error-soft: rgba(231, 118, 99, 0.10);
+
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.34);
+  --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.40);
+  --glow-opacidade: 0.10;
+}
+
+* {
+  box-sizing: border-box; /* padding/borda passam a contar DENTRO da largura/altura definidas, evita contas de tamanho */
+}
+
+html {
+  height: 100%;
+  zoom: 0.8; /* aproxima o visual de ~80% do zoom padrão do navegador */
+}
+
+body {
+  margin: 0;
+  font-family: var(--fonte);
+  background: var(--background);
+  color: var(--text-primary);
+  transition: background-color var(--dur) ease, color var(--dur) ease; /* suaviza a troca de tema */
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* A dashboard do prestador é a única tela pensada para caber em "uma
+   tela só" (ver .dashboard-prestador mais abaixo). Restringimos o
+   overflow:hidden a esse caso específico — quando é a tela do cliente
+   (ou qualquer outra) que está visível dentro de <main>, a página
+   volta a rolar normalmente, senão conteúdo mais alto que a viewport
+   (formulário + chamado + mapa + histórico) ficaria cortado sem aviso. */
+main:has(#tela-prestador:not(.oculta)) {
+  height: 100%;
+  overflow: hidden;
+}
+
+h1, h2, h3 {
+  font-family: var(--fonte-titulo);
+  letter-spacing: -0.01em;
+}
+
+/* Classe usada em JS (app.js) para esconder elementos por completo,
+   sem deixar "buraco" no layout — equivalente a display:none. */
+.oculto,
+.oculta {
+  display: none !important;
+}
+
+/* Entrada suave sempre que uma tela deixa de estar oculta — dispara
+   sozinha porque o navegador reinicia animações ao sair de
+   display:none, sem precisar de nenhuma mudança no JS. */
+.tela:not(.oculta) {
+  animation: tela-entrada 280ms ease;
+}
+@keyframes tela-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animação uniforme para as telas e seus blocos principais criados no
+   dashboard e formulários — dá uma entrada mais "premium" sem forçar
+   movimento excessivo em cada item. */
+.tela:not(.oculta) .cartao,
+.tela:not(.oculta) .dash-card,
+.tela:not(.oculta) .status-banner,
+.tela:not(.oculta) .lista-chamados .item-chamado,
+.tela:not(.oculta) .lista-historico .item-historico {
+  animation: bloco-entrada 320ms var(--ease-suave) both;
+}
+
+.tela:not(.oculta) .lista-chamados .item-chamado:nth-child(2) { animation-delay: 30ms; }
+.tela:not(.oculta) .lista-chamados .item-chamado:nth-child(3) { animation-delay: 60ms; }
+.tela:not(.oculta) .lista-chamados .item-chamado:nth-child(4) { animation-delay: 90ms; }
+.tela:not(.oculta) .lista-historico .item-historico:nth-child(2) { animation-delay: 30ms; }
+.tela:not(.oculta) .lista-historico .item-historico:nth-child(3) { animation-delay: 60ms; }
+.tela:not(.oculta) .lista-historico .item-historico:nth-child(4) { animation-delay: 90ms; }
+
+@keyframes bloco-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Troca "Entrar <-> Criar conta" e "Sou cliente <-> Sou prestador": o JS
+   (Anim.altura em animacoes.js) anima a ALTURA do card e aplica .entrando
+   no que aparece; os campos sobem 8px com opacidade, em cascata curta.
+   .saindo-campo faz o conteúdo antigo sumir antes da troca. */
+.formulario.entrando > * {
+  animation: campo-entrada 340ms var(--ease-suave) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.entrando:not(.formulario) {
+  animation: campo-entrada 340ms var(--ease-suave) both;
+}
+@keyframes campo-entrada {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.saindo-campo {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  pointer-events: none;
+}
+/* Linha azul da marca varre o topo do card a cada troca de modo. */
+.cartao-auth { position: relative; }
+.cartao-auth.trocando::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--linha-marca);
+  transform-origin: left;
+  animation: linha-marca 520ms var(--ease-suave) both;
+}
+@keyframes linha-marca {
+  0% { transform: scaleX(0); opacity: 1; }
+  70% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+/* Saída de tela/modal (usada por Anim.sair). */
+.tela.saindo:not(.oculta) {
+  animation: tela-saida 150ms ease forwards;
+  pointer-events: none;
+}
+@keyframes tela-saida {
+  to { opacity: 0; transform: translateY(-4px); }
+}
+.modal.saindo { animation: modal-fundo-saida 160ms ease forwards; pointer-events: none; }
+.modal.saindo .modal-conteudo { animation: modal-saida 160ms ease forwards; }
+@keyframes modal-fundo-saida { to { opacity: 0; } }
+@keyframes modal-saida { to { opacity: 0; transform: translateY(6px) scale(0.98); } }
+
+/* Telas auxiliares: o card entra sutil (fade + 8px + escala 0.98). */
+.tela-aux:not(.oculta) { animation: none; }
+.tela-aux:not(.oculta) .conteudo > * {
+  animation: aux-entrada 380ms var(--ease-suave) both;
+}
+@keyframes aux-entrada {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------- Topo (barra fixa com logo, tema e botão sair) ---------- */
+.topo {
+  position: sticky; /* acompanha a rolagem, fica sempre visível no topo */
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--fonte-titulo);
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.marca-icone {
+  display: block;
+  flex: none;
+  width: 92px;
+  height: 54px;
+  object-fit: contain;
+  object-position: center;
+}
+.marca-nome strong {
+  color: var(--primary);
+}
+.topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.botao-icone {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--dur) ease, border-color var(--dur) ease, transform 150ms ease;
+}
+.botao-icone:hover {
+  border-color: var(--primary-light);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.botao-icone:active {
+  transform: scale(0.94);
+}
+.botao-icone svg {
+  width: 18px;
+  height: 18px;
+}
+/* Contorno visível ao navegar por teclado (Tab), sem aparecer no clique
+   do mouse — acessibilidade básica para quem não usa mouse/touch. */
+.botao-icone:focus-visible,
+.formulario input:focus-visible,
+.formulario select:focus-visible,
+.formulario textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Layout geral (largura máxima central, tipo "coluna de app") ---------- */
+.conteudo {
+  max-width: 1360px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 28px 18px 60px;
+}
+
+/* Telas fora do <main> ocupam todo o espaço livre entre topo e rodapé.
+   Telas auxiliares (Sobre, Ajuda, Termos, Privacidade, Config, Admin,
+   Esqueci/Redefinir senha) centralizam o card nesse espaço: "margin: auto"
+   centraliza quando sobra espaço e, quando o conteúdo é maior, vira
+   rolagem normal (nunca corta). Horizontal segue centralizado. Não usa
+   vh, então respeita o zoom do <html> e qualquer sidebar futura. */
+body > .tela:not(.oculta) {
+  flex: 1 0 auto;
+}
+.tela-aux > .conteudo {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding-block: 28px;
+}
+.tela-aux > .conteudo > * {
+  margin-block: auto;
+}
+#admin-login { max-width: 440px; width: 100%; margin-inline: auto; }
+
+/* Cada tela organiza seus próprios cartões em coluna, com espaçamento
+   consistente entre eles — independe de estar dentro de <main> ou ser
+   uma <section> isolada (caso da tela de auth e de configurações). */
+.tela {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cartao {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur) ease;
+}
+.cartao h2 {
+  margin-top: 0;
+}
+
+.subtitulo {
+  color: var(--text-secondary);
+  margin-top: 0;
+}
+
+/* ---------- Tela de autenticação: intro + cartão lado a lado em telas largas ----------
+   Dois círculos desfocados (::before/::after) atrás do conteúdo dão um
+   "glow" ambiente de marca em azul-claro — bem sutil, reforça a
+   sensação de tecnologia sem pesar a interface. Puramente decorativo,
+   por isso "aria-hidden" não é necessário (pseudo-elementos não entram
+   na árvore de acessibilidade). */
+#tela-auth {
+  position: relative;
+  overflow: hidden;
+}
+#tela-auth::before,
+#tela-auth::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  width: 480px;
+  height: 480px;
+  border-radius: 1000%;
+  filter: blur(110px);
+  opacity: var(--glow-opacidade);
+  pointer-events: none;
+  background: var(--primary);
+}
+#tela-auth::before {
+  top: -200px;
+  left: -180px;
+}
+#tela-auth::after {
+  background: var(--accent);
+  bottom: 220px;
+  right: -180px;
+  top: -200px;
+}
+.conteudo-auth {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+  max-width: 1240px;
+  padding-top: 56px;
+  padding-bottom: 72px;
+}
+.auth-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 480px);
+  /* "start" (não "center"): a coluna da logo não pode subir/descer quando
+     o formulário à direita muda de altura (login <-> cadastro). Ver seção
+     "Login/cadastro — logo fixa" do pedido de ajustes visuais. */
+  align-items: center;
+  margin-block: auto;
+  gap: clamp(36px, 8vw, 120px);
+}
+.auth-intro {
+  /* Compensa visualmente o "start" acima, mas com um valor fixo — nunca
+     depende da altura do cartao-auth ao lado. */
+  padding-top: 0;
+}
+.auth-logo {
+  display: block;
+  width: min(100%, 420px);
+  height: 195px;
+  object-fit: cover;
+  object-position: center;
+  margin-bottom: 22px;
+  filter: drop-shadow(0 10px 24px rgba(59, 130, 246, 0.22));
+}
+.auth-intro h1 {
+  margin: 0 0 10px;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.auth-intro .subtitulo {
+  margin-bottom: 24px;
+  font-size: 15px;
+}
+.auth-destaques {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.destaque {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.destaque-icone {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.destaque-icone svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Segmentado (as "abas" cliente/prestador, entrar/cadastrar) ---------- */
+.segmentado {
+  display: flex;
+  background: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px; /* curva sutil, sem virar "pílula" */
+  padding: 4px;
+  margin: 4px 0 10px;
+  gap: 4px;
+}
+.segmentado-secundario {
+  margin-bottom: 22px;
+}
+.segmentado-opcao {
+  flex: 1; /* os botões dividem o espaço igualmente */
+  border: none;
+  background: transparent;
+  padding: 9px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: background-color var(--dur) ease, color var(--dur) ease, box-shadow var(--dur) ease, transform var(--dur) ease, flex-grow var(--dur) ease;
+  transform-origin: center;
+}
+.segmentado-opcao:not(.ativo) {
+  transform: scaleX(0.985);
+}
+/* Classe alternada via JS (app.js) para marcar qual opção está ativa. */
+.segmentado-opcao.ativo {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
+  transform: scaleX(1.04);
+  flex-grow: 1.08;
+}
+
+/* ---------- Formulários ---------- */
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.formulario label {
+  display: flex;
+  flex-direction: column; /* rótulo em cima, campo embaixo */
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+/* Envolve o texto do rótulo (e o "(opcional)", quando houver) num único
+   item flex de altura fixa. Sem isso, "Telefone" e "(opcional)" viravam
+   dois itens empilhados dentro do label (flex-direction:column trata
+   cada filho, incluindo nós de texto, como um item separado), deixando
+   o rótulo com 2 linhas contra 1 do campo vizinho (ex.: CPF) — e por
+   isso os inputs da mesma .formulario-linha ficavam em alturas
+   diferentes. */
+.rotulo-campo {
+  display: block;
+  min-height: 17px;
+  line-height: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.opcional {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.formulario input,
+.formulario select,
+.formulario textarea {
+  font: inherit; /* herda a fonte do body, em vez da fonte padrão "de sistema" dos formulários */
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--dur) ease, box-shadow var(--dur) ease;
+}
+.campo-senha {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.campo-senha input {
+  width: 100%;
+  padding-right: 46px;
+}
+.botao-olho {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 6px;
+  transition: color var(--dur) ease, background-color var(--dur) ease;
+}
+.icone-olho {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.traço-olho {
+  stroke-linecap: round;
+  opacity: 1;
+  transition: opacity var(--dur) ease;
+}
+.botao-olho:hover {
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.02);
+}
+.botao-olho[data-visivel="true"] .traço-olho {
+  opacity: 0;
+}
+.botao-olho[data-visivel="false"] .traço-olho {
+  opacity: 1;
+}
+.formulario input:focus,
+.formulario select:focus,
+.formulario textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  outline: none;
+}
+.formulario textarea {
+  resize: vertical; /* usuário só pode redimensionar para cima/baixo, não estica o layout na horizontal */
+}
+
+.botao-primario,
+.botao-secundario,
+.botao-perigo {
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 11px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  will-change: transform, box-shadow;
+  transition: background-color var(--dur) ease, border-color var(--dur) ease,
+    color var(--dur) ease, opacity var(--dur) ease, box-shadow var(--dur) ease,
+    transform 120ms ease;
+}
+@keyframes clique-botao {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.97); }
+  60% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+.botao-primario.botao-clique,
+.botao-secundario.botao-clique,
+.botao-perigo.botao-clique {
+  animation: clique-botao 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.botao-com-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.botao-primario svg,
+.botao-secundario svg,
+.botao-perigo svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+.botao-primario {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.26);
+}
+.botao-primario:hover {
+  background: var(--primary-dark);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.34);
+  transform: translateY(-1px);
+}
+.botao-primario:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.28);
+}
+.botao-primario:disabled,
+.botao-secundario:disabled,
+.botao-perigo:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.botao-secundario {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.botao-secundario:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.botao-secundario:active {
+  transform: translateY(0) scale(0.98);
+}
+.botao-perigo {
+  background: var(--error-soft);
+  color: var(--error);
+  border-color: var(--error);
+}
+.botao-perigo:hover {
+  background: var(--error);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.botao-perigo:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.mensagem-erro {
+  background: var(--error-soft);
+  color: var(--error);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+}
+
+.texto-auxiliar {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+/* Padrão único do "Olá, nome" em todas as telas logadas (cliente,
+   prestador, admin): mesmo tamanho, peso, cor e margem — ver seção
+   "Cabeçalho e nome do usuário" do pedido de ajustes visuais. */
+.saudacao h1,
+.cliente-cabecalho h1,
+.dash-saudacao h1 {
+  margin: 0 0 4px 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.saudacao .subtitulo,
+.cliente-cabecalho .subtitulo,
+.dash-saudacao .subtitulo {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* ---------- Progresso do chamado (trilha "Aberto -> Aceito -> A caminho -> Concluído") ----------
+   Truque de CSS: "counter-reset"/"counter-increment"/"content: counter(...)"
+   numera os <li> automaticamente (1, 2, 3, 4) sem precisar escrever o
+   número no HTML nem em JS — o próprio CSS conta. Uma linha conectando
+   os círculos (::after) reforça a ideia de trilha/etapas percorridas.
+   Azul-claro marca as etapas já concluídas; amarelo destaca a etapa
+   atual, chamando a atenção para onde o atendimento está agora. */
+.progresso {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 0;
+  padding: 0;
+  margin: 4px 0 20px;
+  counter-reset: passo;
+}
+.progresso li {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  position: relative;
+  padding-top: 34px; /* abre espaço para o "círculo numerado" (::before) encaixar acima do texto */
+  overflow-wrap: anywhere;
+}
+.progresso li::before {
+  counter-increment: passo;
+  content: counter(passo);
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%); /* centraliza o círculo horizontalmente sobre o texto */
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--surface);
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--dur) ease, box-shadow var(--dur) ease;
+}
+/* Linha conectando o centro de um círculo ao próximo, atrás deles (z-index menor). */
+.progresso li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 11px;
+  left: calc(50% + 12px);
+  width: calc(100% - 24px);
+  height: 2px;
+  background: var(--border);
+  transition: background-color var(--dur) ease;
+}
+/* Classes alternadas via JS (app.js) conforme o status do chamado. */
+.progresso li.concluido::before {
+  background: var(--primary);
+  color: #fff;
+}
+.progresso li.concluido:not(:last-child)::after {
+  background: var(--primary);
+}
+.progresso li.atual {
+  color: var(--text-primary);
+}
+.progresso li.atual::before {
+  background: var(--accent-hover);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px var(--accent-soft); /* "auréola" destacando a etapa atual */
+}
+.progresso li.cancelado::before {
+  content: '×'; /* substitui o número pelo "x" quando o chamado foi cancelado */
+  background: var(--error);
+  color: #fff;
+}
+
+/* Lista de detalhes tipo "ficha" (rótulo à esquerda, valor à direita),
+   usada tanto no card do cliente quanto no do prestador. */
+.detalhes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px 0;
+  margin: 0 0 16px;
+  font-size: 14px;
+  min-width: 0;
+}
+.detalhes dt {
+  color: var(--text-secondary);
+  font-weight: 700;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.detalhes dd {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.detalhes dd:last-of-type {
+  margin-bottom: 0;
+}
+
+.bloco-avaliacao {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.modal-avaliacao-conteudo {
+  width: min(92vw, 560px);
+  max-width: 560px;
+  padding: 26px 24px 20px;
+}
+.modal-avaliacao-conteudo h2 {
+  margin: 0 0 18px;
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  color: var(--text-primary);
+}
+.modal-avaliacao-conteudo .formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-avaliacao-conteudo .estrelas {
+  justify-content: flex-start;
+  margin-bottom: 4px;
+}
+.modal-avaliacao-conteudo textarea {
+  min-height: 110px;
+}
+.modal-avaliacao-conteudo .botao-primario {
+  width: 100%;
+}
+.estrelas {
+  display: flex;
+  gap: 4px;
+  font-size: 26px;
+}
+.estrela {
+  cursor: pointer;
+  color: var(--border); /* estrela "apagada" por padrão */
+  transition: color 120ms ease, transform 120ms ease;
+}
+.estrela:hover {
+  transform: scale(1.08);
+}
+.estrela.ativa {
+  color: var(--accent); /* marcada via JS conforme o clique do usuário */
+}
+
+/* ---------- Disponibilidade do prestador (interruptor liga/desliga) ----------
+   Truque de CSS: o <input type="checkbox"> real fica escondido
+   (display:none); o visual do interruptor é feito com a "trilha"
+   (span.interruptor-trilho) e sua "bolinha" (::after). Quando o
+   checkbox está marcado, o seletor "input:checked + .interruptor-trilho"
+   muda a cor de fundo e desloca a bolinha para a direita. */
+.cartao-disponibilidade {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.interruptor {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.interruptor input {
+  display: none;
+}
+.interruptor-trilho {
+  width: 44px;
+  height: 24px;
+  background: var(--border);
+  border-radius: 999px;
+  position: relative;
+  transition: background var(--dur) ease;
+  flex: none;
+}
+.interruptor-trilho::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur) ease; /* anima o deslize da bolinha */
+}
+.interruptor input:checked + .interruptor-trilho {
+  background: var(--success);
+}
+.interruptor input:checked + .interruptor-trilho::after {
+  transform: translateX(20px); /* desliza a bolinha para a direita quando "ligado" */
+}
+
+/* ---------- Listas (chamados disponíveis e histórico) ---------- */
+.lista-chamados,
+.lista-historico {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.item-chamado,
+.item-historico {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--dur) ease, box-shadow var(--dur) ease, transform var(--dur) ease;
+}
+.item-historico > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+.item-historico strong,
+.item-historico .texto-auxiliar {
+  display: block;
+  width: 100%;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.avaliacao-comentario {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.item-chamado:hover {
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+.item-chamado-info strong {
+  display: block;
+  font-size: 14.5px;
+  color: var(--text-primary);
+}
+
+/* "Selo" (badge) de status no histórico — cor muda conforme o status.
+   O amarelo é a cor padrão do selo (status em andamento), reservando o
+   destaque para o que ainda precisa de atenção; verde e vermelho
+   marcam os estados finais (concluído/cancelado). */
+.selo {
+  display: inline-block;
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  white-space: nowrap;
+}
+.selo-cancelado {
+  background: var(--error-soft);
+  color: var(--error);
+}
+.selo-concluido {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* Estado vazio (ex.: "nenhum chamado disponível", "nada por aqui ainda") */
+.estado-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 30px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+.estado-vazio-icone {
+  width: 32px;
+  height: 32px;
+  opacity: 0.55;
+}
+
+.acoes {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rodape {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 24px 20px;
+}
+
+/* ---------- Notificações (toast), substituem alert() nativo ---------- */
+.toast-container {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  /* Acima dos modais (o do atendimento do prestador cobre a tela): sem isso os
+     avisos e erros ficavam escondidos atrás do fundo escuro. */
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: min(360px, calc(100vw - 32px));
+}
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  box-shadow: var(--shadow-md);
+  animation: toast-entrada 220ms ease;
+}
+.toast-erro {
+  border-left-color: var(--error);
+}
+.toast-sucesso {
+  border-left-color: var(--success);
+}
+@keyframes toast-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Modal de confirmação, substitui confirm() nativo ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 2000;
+  animation: modal-fundo-entrada 180ms ease;
+}
+@keyframes modal-fundo-entrada {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal-conteudo {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: var(--shadow-xl);
+  animation: modal-entrada 220ms ease;
+}
+@keyframes modal-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.modal-chamado-conteudo {
+  max-width: 480px;
+}
+.modal-chamado-conteudo .detalhes {
+  margin-top: 18px;
+}
+.modal-conteudo p {
+  margin: 0 0 20px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Em telas estreitas (celular), os itens de lista empilham em vez de
+   ficar lado a lado, para não espremer o botão "Aceitar". */
+@media (max-width: 480px) {
+  .topo {
+    padding: 10px 16px;
+  }
+  .marca {
+    font-size: 17px;
+  }
+  .marca-icone {
+    width: 76px;
+    height: 46px;
+  }
+  .topo-acoes {
+    gap: 6px;
+  }
+  .topo-acoes .botao-secundario {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .conteudo {
+    padding: 20px 14px 48px;
+  }
+  .conteudo-auth {
+    padding-top: 28px;
+    padding-bottom: 48px;
+  }
+  .auth-layout {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+  .auth-intro h1 {
+    font-size: 24px;
+  }
+  .auth-logo {
+    width: min(100%, 340px);
+    height: 158px;
+    margin-bottom: 16px;
+  }
+  .cartao {
+    padding: 18px;
+  }
+  .item-chamado,
+  .item-historico {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    align-items: stretch;
+    max-width: none;
+  }
+}
+
+/* Tablets: a coluna do formulário de auth ainda cabe ao lado da
+   introdução, só um pouco mais estreita — evita que o cartão de
+   login/cadastro fique espremido antes de cair para 1 coluna em
+   telas de celular (regra acima, max-width: 480px). */
+@media (min-width: 481px) and (max-width: 900px) {
+  .auth-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: 28px;
+  }
+}
+
+/* ---------- Tela de carregamento (splash inicial) ---------- */
+.tela-carregamento {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--background);
+}
+.spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  animation: girar 0.7s linear infinite;
+}
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Largura um pouco mais estreita que ".conteudo", para telas de um
+   único cartão de formulário (esqueci senha, redefinir senha,
+   configurações, páginas institucionais) — fica mais confortável de
+   ler do que a largura de "painel" usada no cliente/prestador. */
+.conteudo-estreito {
+  max-width: 560px;
+  width: 100%;
+}
+
+#tela-admin .cartao,
+#tela-sobre .cartao,
+#tela-ajuda .cartao,
+#tela-termos .cartao,
+#tela-privacidade .cartao,
+#tela-configuracoes .cartao {
+  min-height: 420px;
+  padding: 28px 30px;
+}
+
+#tela-admin .cartao h2,
+#tela-sobre .cartao h2,
+#tela-ajuda .cartao h2,
+#tela-termos .cartao h2,
+#tela-privacidade .cartao h2,
+#tela-configuracoes .cartao h2 {
+  font-size: clamp(1.1rem, 1.6vw, 1.7rem);
+}
+
+#tela-esqueci-senha .cartao,
+#tela-redefinir-senha .cartao {
+  min-height: auto;
+  padding: 28px 30px;
+}
+
+#tela-esqueci-senha .cartao h2,
+#tela-redefinir-senha .cartao h2 {
+  font-size: clamp(1.7rem, 2.2vw, 2.1rem);
+}
+
+#tela-esqueci-senha .formulario,
+#tela-redefinir-senha .formulario {
+  gap: 18px;
+}
+
+#tela-esqueci-senha .subtitulo,
+#tela-redefinir-senha .subtitulo {
+  margin-bottom: 18px;
+}
+
+#tela-esqueci-senha .btn-voltar,
+#tela-redefinir-senha .btn-voltar {
+  margin-top: 12px;
+}
+
+.botao-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 0;
+  transition: color var(--dur) ease;
+}
+.botao-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+.mensagem-sucesso {
+  background: var(--success-soft);
+  color: var(--success);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  margin-bottom: 12px;
+}
+
+#tela-esqueci-senha .btn-voltar {
+  margin-top: 8px;
+}
+
+/* Utilitário genérico de "pilha vertical com espaçamento" — mesma
+   fórmula de ".tela", usado para blocos que não são telas de topo (ex.:
+   o conteúdo do painel admin depois do login). */
+.pilha {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ---------- Mapa (Leaflet + OpenStreetMap) ---------- */
+.mapa-caixa {
+  position: relative;
+  height: 220px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+  background: var(--background);
+}
+html.mapa-fullscreen,
+body.mapa-fullscreen {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.mapa-caixa.mapa-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 900;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  max-height: none;
+  transform: none;
+}
+.mapa-caixa.mapa-fullscreen .leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100vh;
+  z-index: 1;
+}
+.mapa-caixa.mapa-fullscreen .leaflet-pane,
+.mapa-caixa.mapa-fullscreen .leaflet-top,
+.mapa-caixa.mapa-fullscreen .leaflet-control {
+  z-index: 1;
+}
+.mapa-caixa.mapa-fullscreen .leaflet-popup {
+  z-index: 1100;
+}
+.mapa-caixa.mapa-fullscreen .leaflet-popup-content-wrapper,
+.mapa-caixa.mapa-fullscreen .leaflet-popup-tip {
+  z-index: 1100;
+}
+.mapa-caixa.mapa-fullscreen .mapa-botao-fullscreen {
+  top: 18px;
+  right: 18px;
+  z-index: 1200;
+}
+.mapa-botao-fullscreen {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 500;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-primary);
+  padding: 7px 10px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 150ms ease, box-shadow var(--dur) ease;
+}
+.mapa-botao-fullscreen:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.mapa-icone {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-md);
+  font-size: 18px;
+  line-height: 1;
+  background: #fff;
+}
+
+/* Marcadores do mapa por categoria: tons suaves derivados da própria
+   paleta (azul, cinza, amarelo, verde, vermelho), sem introduzir cores
+   novas ao sistema. */
+.icon-mecanico { background: var(--primary-soft); }
+.icon-borracheiro { background: var(--background-secondary); }
+.icon-auto-eletrica { background: var(--accent-soft); }
+.icon-guincho { background: var(--success-soft); }
+.icon-cliente { background: var(--error-soft); }
+
+/* ---------- Painel administrativo ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+.stat-numero {
+  font-family: var(--fonte-titulo);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.stat-rotulo {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.cartao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.cartao-cabecalho h2 {
+  margin: 0;
+}
+.admin-filtro {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--text-primary);
+  transition: border-color var(--dur) ease;
+}
+.admin-filtro:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.tabela-caixa {
+  overflow-x: auto;
+}
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.tabela th,
+.tabela td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.tabela th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tabela tbody tr {
+  transition: background-color var(--dur) ease;
+}
+.tabela tbody tr:hover {
+  background: var(--background-secondary);
+}
+.tabela tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.lista-categorias {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.item-categoria {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13.5px;
+}
+.categoria-nome {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.categoria-input {
+  font: inherit;
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--text-primary);
+  transition: border-color var(--dur) ease;
+}
+.categoria-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.botao-pequeno {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+/* Botão "Atualizar" (ícone + texto): um pouco maior que .botao-pequeno
+   genérico para não ficar minúsculo/deslocado, com o ícone girando
+   suavemente enquanto a atualização está em andamento. */
+.botao-atualizar {
+  padding: 8px 14px;
+  font-size: 13px;
+  gap: 8px;
+}
+.botao-atualizar svg {
+  width: 15px;
+  height: 15px;
+  transition: transform var(--dur) ease;
+}
+.botao-atualizar.carregando svg {
+  animation: girar 800ms linear infinite;
+}
+@keyframes girar {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Avaliações do prestador ---------- */
+.avaliacao-resumo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+.avaliacao-resumo strong {
+  font-size: 20px;
+  color: var(--accent-hover);
+}
+
+/* ---------- Ajuda / FAQ (usa <details>/<summary> nativos) ---------- */
+.faq-item {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+.faq-item:last-of-type {
+  border-bottom: none;
+}
+.faq-item summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  color: var(--text-primary);
+}
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+.faq-item summary::before {
+  content: '+';
+  display: inline-block;
+  width: 18px;
+  color: var(--primary);
+  font-weight: 700;
+}
+.faq-item[open] summary::before {
+  content: '−';
+}
+.faq-item p {
+  margin: 10px 0 0 18px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* ---------- Links institucionais no rodapé ---------- */
+.rodape-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+.rodape-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 12.5px;
+  transition: color var(--dur) ease;
+}
+.rodape-links a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+/* Em telas largas, a tela de autenticação ganha mais respiro: cartão
+   um pouco mais estreito/centralizado e título maior. O layout em
+   duas colunas em si já vem do grid de .auth-layout (ver acima). */
+@media (min-width: 960px) {
+  .conteudo-auth {
+    max-width: 1040px;
+    padding-top: 64px;
+  }
+  .auth-intro h1 {
+    font-size: 34px;
+  }
+}
+
+/* ================================================================
+   DASHBOARD DO PRESTADOR — Layout 100vh, grid 2x2
+   Ativa APENAS na seção #tela-prestador (não afeta outras telas).
+   Prioridade: desktop (1366px+), sem scroll vertical.
+================================================================ */
+
+
+#tela-prestador {
+  /* Ocupa 100% da altura disponível (viewport - header) */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* impede scroll na dashboard principal */
+}
+
+/* Cabeçalho: Saudação + Status (horizontal, compacto) */
+.dash-cabecalho {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  flex-shrink: 0; /* não encolhe quando há espaço limitado */
+}
+
+.dash-status-rapido {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  transition: background-color var(--dur) ease, color var(--dur) ease;
+}
+/* Classe alternada via JS (app.js, atualizarBadgeDisponivel) — o seletor
+   antigo baseado em "~" nunca funcionou porque o checkbox e o badge
+   ficam em ramos diferentes do DOM (não são irmãos). */
+.status-badge.status-badge-ativo {
+  color: #FFFFFF;
+  background: var(--success);
+}
+
+/* Grid principal: coluna esquerda com 3 células empilhadas (Status,
+   Avaliações, Histórico) e a coluna de Chamados ocupando a altura
+   inteira ao lado — sem sobrepor células (ver observação abaixo). */
+.dash-grid {
+  flex: 1; /* expande para preencher o espaço restante */
+  display: grid;
+  grid-template-columns: 1fr 1.2fr; /* col 1 mais estreita, col 2 (chamados) maior destaque */
+  grid-template-rows: auto auto 1fr; /* Status e Avaliações do tamanho do conteúdo; Histórico ocupa o resto */
+  gap: 20px;
+  padding: 20px 28px;
+  overflow: hidden; /* impede scroll no grid */
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Cada célula do grid é um card */
+.dash-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden; /* contém scroll caso haja conteúdo demais */
+}
+
+.dash-card:hover {
+  box-shadow: var(--shadow-md);
+  transition: box-shadow var(--dur) ease;
+}
+
+/* Célula STATUS: compacta, sem scroll */
+.dash-card-status {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.card-header-compacto h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card-conteudo-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-conteudo-status .interruptor {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.card-conteudo-status .texto-auxiliar {
+  font-size: 12px;
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.card-conteudo-status .botao-pequeno {
+  align-self: flex-start;
+  padding: 8px 14px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-conteudo-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Célula CHAMADOS: destaque visual maior, ocupa as 3 linhas da coluna 1 */
+.dash-card-chamados {
+  grid-row: 1 / 4;
+  grid-column: 2;
+  border: 2px solid var(--primary);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--primary-soft) 100%);
+}
+
+.card-header h3 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card-conteudo-chamados {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  gap: 12px;
+}
+.card-conteudo-chamados::-webkit-scrollbar {
+  display: none;
+}
+
+.item-chamado-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.bloco-chamados {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.estado-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.estado-vazio-icone {
+  width: 48px;
+  height: 48px;
+  opacity: 0.5;
+  margin: 0;
+}
+
+.estado-vazio span {
+  display: block;
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.estado-vazio small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.lista-chamados {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lista-chamados .item-chamado {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all var(--dur) ease;
+  order: -1;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 150px;
+  justify-content: space-between;
+}
+
+.lista-chamados .item-chamado-info {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 94px;
+  justify-content: space-between;
+}
+
+.lista-chamados .item-chamado strong,
+.lista-chamados .item-chamado .item-chamado-categoria,
+.lista-chamados .item-chamado .item-chamado-descricao,
+.lista-chamados .item-chamado .item-chamado-meta {
+  display: block;
+  width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.lista-chamados .item-chamado strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lista-chamados .item-chamado .item-chamado-categoria {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--primary-light);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lista-chamados .item-chamado .item-chamado-descricao,
+.lista-chamados .item-chamado .item-chamado-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.lista-chamados .item-chamado .item-chamado-descricao {
+  min-height: 2.7em;
+  display: -webkit-box;
+  /* -webkit-line-clamp: 2; */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lista-chamados .item-chamado .item-chamado-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lista-chamados .item-chamado .botao-primario {
+  width: 100%;
+  min-height: 38px;
+  align-self: stretch;
+  white-space: nowrap;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.lista-chamados .item-chamado:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  transform: translateX(4px);
+}
+
+/* Célula AVALIAÇÕES: resumo compacto */
+.dash-card-avaliacoes {
+  grid-row: 2;
+  grid-column: 1;
+}
+.card-conteudo-avaliacoes {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.avaliacao-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.avaliacao-resumo strong {
+  font-size: 20px;
+  color: var(--primary);
+}
+
+/* Célula HISTÓRICO: últimos 3-4, ocupa o restante da coluna esquerda */
+.dash-card-historico {
+  grid-row: 3;
+  grid-column: 1;
+  min-height: 0; /* permite que o overflow-y interno (abaixo) funcione dentro do fr restante */
+}
+
+/* O botão "Ver histórico completo" precisa ficar SEMPRE visível, fora
+   da área de scroll — só a lista interna rola quando tem muito
+   conteúdo (ver seção "Histórico" do pedido de ajustes visuais). */
+.card-conteudo-historico {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  max-height: 300px;
+}
+
+.lista-historico-compacta {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.lista-historico-compacta::-webkit-scrollbar {
+  display: none;
+}
+
+.card-conteudo-historico .botao-link-modal {
+  flex: none;
+}
+
+.lista-historico-compacta .item-historico {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  gap: 10px;
+}
+
+.lista-historico-compacta .item-historico strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lista-historico-compacta .item-historico .texto-auxiliar {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.lista-historico-compacta .item-historico:last-child {
+  border-bottom: none;
+}
+
+/* Botões "Ver mais" dentro dos cards */
+.botao-link-modal {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0;
+  margin-top: auto; /* fica ao final do card */
+  text-align: left;
+  transition: color var(--dur) ease;
+}
+
+.botao-link-modal:hover {
+  color: var(--primary-dark);
+}
+
+/* Estilos dos MODAIS (chamado em andamento, avaliações, histórico) */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(30, 41, 59, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483647;
+  opacity: 1;
+  transition: opacity var(--dur) ease;
+  padding: 20px;
+}
+
+.modal.oculto {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-conteudo {
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--shadow-xl);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 28px;
+  position: relative;
+  z-index: 1;
+  animation: modalEntrar var(--dur) ease;
+}
+.modal-conteudo::-webkit-scrollbar {
+  display: none;
+}
+
+.modal-conteudo.modal-grande {
+  max-width: 800px;
+}
+
+@keyframes modalEntrar {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-conteudo h2 {
+  margin: 0 0 16px 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.modal-fechar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--background);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--text-secondary);
+  transition: all var(--dur) ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-fechar:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.modal-corpo {
+  margin-bottom: 20px;
+}
+
+.modal-acoes {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.modal-acoes button {
+  flex: 1;
+}
+
+/* Responsividade para tablets e monitores menores */
+@media (max-width: 1200px) {
+  .dash-grid {
+    grid-template-columns: 1fr 1.1fr;
+    grid-template-rows: auto auto auto auto;
+    gap: 16px;
+    padding: 16px 20px;
+  }
+
+  .dash-card-chamados {
+    grid-row: 2;
+    grid-column: 1 / 3;
+  }
+
+  .dash-card-avaliacoes {
+    grid-row: 3;
+    grid-column: 1;
+  }
+
+  .dash-card-historico {
+    grid-row: 3;
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 900px) {
+  #tela-prestador {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+
+  .dash-cabecalho {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px;
+  }
+
+  .dash-status-rapido {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+
+  .dash-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 16px;
+    padding: 16px 18px 64px;
+    max-width: none;
+  }
+
+  .dash-card-status,
+  .dash-card-chamados,
+  .dash-card-avaliacoes,
+  .dash-card-historico {
+    grid-row: auto;
+    grid-column: auto;
+  }
+
+  .dash-card-chamados {
+    grid-row: 2;
+    grid-column: 1;
+    min-height: 380px;
+  }
+
+  .modal-conteudo {
+    max-height: 80vh;
+    padding: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dash-cabecalho {
+    padding: 14px 14px 12px;
+  }
+
+  .dash-status-rapido {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .status-badge {
+    width: auto;
+    font-size: 12px;
+    padding: 7px 10px;
+  }
+
+  .dash-grid {
+    gap: 14px;
+    padding: 14px 12px 56px;
+  }
+
+  .dash-card {
+    padding: 16px;
+  }
+
+  .card-header h3,
+  .card-header-compacto h3 {
+    margin-bottom: 12px;
+    font-size: 16px;
+  }
+
+  .card-conteudo-status {
+    gap: 10px;
+  }
+
+  .modal {
+    padding: 12px;
+  }
+
+  .modal-conteudo {
+    width: min(100%, 100%);
+    max-height: 84vh;
+    padding: 18px 16px 16px;
+    border-radius: 16px;
+  }
+
+  .modal-acoes {
+    flex-direction: column;
+  }
+
+  .modal-acoes button {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .lista-chamados .item-chamado {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .lista-chamados .item-chamado .item-chamado-meta {
+    flex-wrap: wrap;
+  }
+
+  .lista-chamados .item-chamado .botao-primario {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .botao-link-modal {
+    align-self: stretch;
+    text-align: center;
+  }
+}
+
+/* ================================================================
+   SELEÇÃO DE CATEGORIA EM CARDS
+   Usado em: cadastro de prestador, "Tipo de problema" (chamado do
+   cliente) e Configurações. O <select> original continua no DOM
+   (visualmente escondido) para manter o valor do formulário e a
+   compatibilidade com o app.js — os cards apenas espelham e
+   controlam esse <select>.
+================================================================ */
+
+.select-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* As 4 categorias (Mecânico, Borracheiro, Auto Elétrica, Guincho) devem
+   ficar sempre com o mesmo tamanho e, no desktop, juntas na mesma
+   linha — ver seção "Profissões/categorias" do pedido de ajustes
+   visuais. Como o mesmo componente aparece dentro de cartões estreitos
+   (cadastro/configurações, ~480px) e largos (chamado do cliente), usamos
+   4 colunas fixas quando cabe confortavelmente e caímos para 2 (depois 1)
+   nos containers/telas mais estreitos, sem nunca deixar um card maior
+   que outro. */
+.categoria-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+@media (max-width: 640px) {
+  .categoria-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.categoria-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 170px;
+  height: 100%;
+  width: 100%;
+  padding: 16px 14px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--text-primary);
+  box-sizing: border-box;
+  transition: border-color var(--dur) ease, box-shadow var(--dur) ease, transform 150ms ease, background-color var(--dur) ease;
+}
+
+.categoria-card:hover {
+  border-color: var(--categoria-cor, var(--primary-light));
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+.categoria-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.categoria-card.ativa {
+  border-color: var(--categoria-cor, var(--primary));
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 1px var(--categoria-cor, var(--primary));
+}
+
+.categoria-card-icone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--categoria-cor, var(--primary));
+  color: #FFFFFF;
+  flex-shrink: 0;
+}
+
+.categoria-card-icone svg {
+  width: 20px;
+  height: 20px;
+}
+
+.categoria-card-nome {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  font-family: var(--fonte-titulo);
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+.categoria-card-desc {
+  display: block;
+  margin-top: auto;
+  min-height: 36px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.categoria-card-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--categoria-cor, var(--primary));
+  color: #FFFFFF;
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity var(--dur) ease, transform var(--dur) ease;
+}
+
+.categoria-card.ativa .categoria-card-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Em telas bem estreitas, cards ficam em coluna única para não espremer texto */
+@media (max-width: 400px) {
+  .categoria-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================================================================
+   DASHBOARD DO CLIENTE — Layout horizontal (grid principal + lateral)
+   Mantém IDs e lógica originais; só reorganiza a disposição visual
+   para aproveitar a largura da tela em vez de empilhar tudo.
+================================================================ */
+
+.cliente-cabecalho {
+  width: min(100%, 1280px);
+  margin: 0 auto 12px;
+  padding: 18px 0 10px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+
+.cliente-grid {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.cliente-principal,
+.cliente-lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.cliente-principal > .cartao,
+.cliente-lateral > .cartao,
+.cartao-historico-mapa {
+  height: 100%;
+}
+
+.cartao-historico-mapa {
+  display: flex;
+  flex-direction: column;
+  max-height: 72vh;
+  overflow: hidden;
+}
+
+/* Histórico + Localização dividem um único cartão (uma borda externa só);
+   o divisor abaixo é a única separação visual entre as duas seções. */
+.cartao-historico-mapa h2 + .lista-historico,
+.cartao-historico-mapa h2:first-of-type {
+  margin-top: 0;
+}
+.cartao-historico-mapa .lista-historico {
+  max-height: 230px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cartao-historico-mapa .lista-historico::-webkit-scrollbar {
+  display: none;
+}
+.divisor-cartao {
+  height: 1px;
+  background: var(--border);
+  margin: 18px 0;
+  flex-shrink: 0;
+}
+.cartao-historico-mapa .mapa-caixa-lateral {
+  margin-bottom: 0;
+  flex: 1;
+  min-height: 220px;
+  max-height: 260px;
+}
+/* Enquanto não há chamado ativo, o Leaflet ainda não populou a div (ela
+   fica sem filhos) — mostra um aviso simples nesse estado. Assim que o
+   mapa é criado (renderizarChamadoCliente -> Mapa.criarOuAtualizar), a
+   div ganha filhos e ":empty" deixa de bater, escondendo o aviso sem
+   precisar de nenhuma lógica extra em JS. */
+.mapa-caixa-lateral:empty::before {
+  content: "Sem chamado ativo no momento.";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Linha horizontal dentro de formulários: pares de campos lado a lado
+   em vez de empilhados, aproveitando a largura do card. */
+.formulario-linha {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start; /* CPF/Telefone (e os demais pares) começam sempre na mesma altura */
+}
+
+.formulario-linha-botoes {
+  align-items: stretch;
+}
+
+.formulario-linha-botoes .botao-secundario {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .cliente-grid {
+    grid-template-columns: 1fr;
+  }
+  .formulario-linha {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================================================================
+   PAINEL ADMIN — aproveitamento horizontal
+   Estatísticas + categorias lado a lado (a tabela de categorias é
+   compacta e não precisa de uma linha própria só para ela).
+================================================================ */
+.admin-linha-superior {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(240px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .admin-linha-superior {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =================================================================
+   Fluxo de acompanhamento do atendimento (cliente e prestador)
+   ================================================================= */
+
+/* Estado atual do atendimento, em destaque, no card do cliente. */
+.status-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  transition: background-color var(--dur) ease;
+  overflow-wrap: anywhere;
+}
+.status-banner-titulo {
+  font-size: 16px;
+  line-height: 1.3;
+}
+.status-banner-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.status-banner[data-estado='concluido'] {
+  background: var(--success-soft);
+}
+.status-banner[data-estado='cancelado'] {
+  background: var(--error-soft);
+}
+/* Pequena transição quando o status muda (rápida, sem "quicar"). */
+.status-troca {
+  animation: status-troca 260ms var(--ease-suave);
+}
+@keyframes status-troca {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Linha do tempo: "18:32 — Prestador aceitou o chamado". */
+.linha-tempo {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0 0 0 16px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+.linha-tempo:empty {
+  display: none;
+}
+.linha-tempo li {
+  position: relative;
+}
+.linha-tempo li::before {
+  content: '';
+  position: absolute;
+  left: -22px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.linha-tempo li.evento-concluido::before {
+  background: var(--success);
+}
+.linha-tempo li.evento-cancelado::before {
+  background: var(--error);
+}
+.linha-tempo li.evento-novo {
+  animation: status-troca 260ms var(--ease-suave);
+}
+.linha-tempo time {
+  font-weight: 700;
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.linha-tempo .evento-detalhe {
+  display: block;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Botões do atendimento do prestador: quebram de linha em telas estreitas. */
+#prestador-com-chamado .modal-acoes {
+  flex-wrap: wrap;
+}
+#prestador-com-chamado .mensagem-erro {
+  margin: 12px 0 0;
+}
+/* "Atendimento concluído" / "Atendimento cancelado" no lugar dos botões. */
+.estado-final {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  background: var(--success-soft);
+  color: var(--success);
+}
+.estado-final.estado-final-cancelado {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+/* Modal de cancelamento (confirmação + motivo). */
+.modal-cancelar-titulo {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+.motivos-cancelamento {
+  border: 0;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.motivos-cancelamento legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.motivo-opcao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color var(--dur) ease, background-color var(--dur) ease;
+}
+.motivo-opcao:has(input:checked) {
+  border-color: var(--error);
+  background: var(--error-soft);
+}
+.motivo-opcao input {
+  accent-color: var(--error);
+}
+#motivo-cancelamento-detalhe {
+  /* mesmo visual dos campos de .formulario (o modal fica fora dele) */
+  font: inherit;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+  resize: vertical;
+}
+#modal-cancelar-atendimento .mensagem-erro {
+  margin: 0 0 12px;
+}
+#modal-cancelar-atendimento .modal-acoes {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+
+/* =================================================================
+   Login com Google · popup de perfil · Central de Notificações ·
+   card informativo · ordenação · raio de atendimento
+   (usa só os tokens do tema: acompanha o modo claro/escuro)
+   ================================================================= */
+
+/* ---- Login com Google ---- */
+.google-area { margin-top: 18px; }
+.divisor-ou {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 14px;
+}
+.divisor-ou::before,
+.divisor-ou::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.google-botao {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.google-botao iframe,
+.google-botao > div {
+  border-radius: 999px !important;
+  overflow: hidden;
+}
+.google-aviso { text-align: center; margin: 10px 0 0; }
+
+/* ---- Campo com unidade (raio em km) ---- */
+.campo-com-unidade { position: relative; display: block; }
+.campo-com-unidade input { padding-right: 44px; }
+.campo-unidade {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+/* ---- Ordenação ---- */
+.card-header-chamados { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ordenar-controle { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
+.ordenar-controle select { width: auto; min-width: 0; max-width: 100%; }
+
+/* ---- Card informativo (componente reutilizável) ---- */
+.cartao-info-area:empty { display: none; }
+.cartao-info-area { margin-bottom: 14px; }
+.cartao-info {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 40px 12px 14px;
+  background: var(--primary-soft);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary-dark);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  animation: cartao-info-entra var(--dur) var(--ease-suave) both;
+}
+.cartao-info-aviso { border-left-color: var(--error); background: var(--error-soft); }
+.cartao-info-icone { flex: 0 0 auto; width: 22px; height: 22px; color: var(--primary-dark); margin-top: 1px; }
+.cartao-info-aviso .cartao-info-icone { color: var(--error); }
+.cartao-info-icone svg { width: 100%; height: 100%; display: block; }
+.cartao-info-corpo { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cartao-info-titulo { font-size: 0.95rem; }
+.cartao-info-descricao { margin: 0; font-size: 0.9rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+.cartao-info-complemento { font-size: 0.78rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.cartao-info-acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
+.cartao-info-fechar {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.cartao-info-fechar:hover { background: var(--background-secondary); }
+.cartao-info-fechar:focus-visible { outline: 2px solid var(--primary-dark); outline-offset: 1px; }
+.cartao-info-saindo { animation: cartao-info-sai 180ms ease forwards; }
+@keyframes cartao-info-entra { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes cartao-info-sai { to { opacity: 0; transform: translateY(-6px); } }
+
+/* ---- Central de Notificações (sino + contador + painel) ---- */
+.notificacoes { position: relative; }
+.botao-notificacoes { position: relative; }
+.contador-notificacoes {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--error);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.painel-notificacoes {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(70vh, 460px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-xl);
+  z-index: 60;
+  overflow: hidden;
+  animation: cartao-info-entra var(--dur) var(--ease-suave) both;
+}
+.painel-notificacoes-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.painel-notificacoes-topo .botao-link:disabled { opacity: 0.45; cursor: default; }
+.lista-notificacoes { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+.item-notificacao {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 11px 14px 11px 18px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  position: relative;
+}
+.item-notificacao:hover { background: var(--background-secondary); }
+.item-notificacao:focus-visible { outline: 2px solid var(--primary-dark); outline-offset: -2px; }
+.item-notificacao small { color: var(--text-muted); font-size: 0.74rem; }
+.item-notificacao.nao-lida { color: var(--text-primary); font-weight: 600; background: var(--primary-soft); }
+.item-notificacao.nao-lida::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 17px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary-dark);
+}
+.item-notificacao-texto { overflow-wrap: anywhere; }
+.notificacoes-vazio { margin: 0; padding: 22px 14px; text-align: center; color: var(--text-muted); font-size: 0.88rem; }
+
+/* Celular: o painel ocupa a largura da tela, abaixo da barra do topo */
+@media (max-width: 600px) {
+  .painel-notificacoes {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: 64px;
+    width: auto;
+    max-height: calc(100vh - 80px);
+  }
+  .ordenar-controle { width: 100%; justify-content: space-between; }
+  .ordenar-controle select { flex: 1; }
+  .cartao-info { padding-right: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cartao-info, .painel-notificacoes, .cartao-info-saindo { animation: none; }
+}

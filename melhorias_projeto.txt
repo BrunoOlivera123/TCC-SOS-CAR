@@ -1,0 +1,278 @@
+MELHORIAS RECOMENDADAS - PROJETO SOS CAR
+=========================================
+
+Atualizado após a varredura de 18/09/2026.
+
+Legenda:  [FEITO]   corrigido no código
+          [PARCIAL] parte feita, o restante continua na lista
+          (sem marca) ainda não feito
+
+
+0. ATENÇÃO IMEDIATA (fora do código)
+------------------------------------
+
+0.1 Senha do banco exposta
+- O arquivo banco.txt (raiz do projeto) tem host, usuário e senha do MySQL
+  em texto puro, e o "backup antes de mudar a cor.zip" contém um .env.
+- Trocar a senha do MySQL no painel da hospedagem. Se o projeto já foi para o
+  GitHub ou foi enviado a alguém, considere a senha atual comprometida.
+- Tirar banco.txt e o .zip de dentro da pasta do projeto.
+- O .gitignore agora ignora banco.txt e *.zip. Se algum deles já foi
+  publicado, apagar o arquivo NÃO basta: ele continua no histórico do Git.
+
+0.2 Conta de administrador com senha padrão
+- Sem ADMIN_EMAIL/ADMIN_SENHA no .env, o login é admin@soscar.com / admin123.
+  Definir os seus valores (de preferência ADMIN_SENHA_HASH) antes de publicar.
+
+
+1. CORRIGIDO NESTA VARREDURA
+----------------------------
+
+Servidor
+[FEITO] Qualquer usuário logado derrubava o servidor inteiro enviando uma senha
+        que não fosse texto (ex.: PATCH /api/auth/atualizar com senha: 12345).
+        Os handlers async agora repassam erros ao Express, há um middleware
+        global de erro (JSON, sem stack trace) e um log de promises não tratadas.
+[FEITO] Transação do MySQL: START TRANSACTION era enviado por pool.query(), que
+        pode usar conexões diferentes a cada comando. Agora usa uma única
+        conexão (getConnection + beginTransaction/commit/rollback).
+[FEITO] Gravações simultâneas são serializadas e agrupadas (evita deadlock do
+        DELETE + INSERT de todas as tabelas em transações concorrentes).
+[FEITO] Uma única falha de gravação colocava o sistema em modo memória PARA
+        SEMPRE, sem aviso (tudo o que fosse feito depois se perdia ao
+        reiniciar). Agora a falha é registrada, aparece em /health e a próxima
+        gravação recupera o estado inteiro.
+[FEITO] CREATE DATABASE negado (normal em hospedagem compartilhada) fazia o
+        sistema cair para memória mesmo com o banco acessível.
+[FEITO] Tokens de redefinição de senha eram filtrados com NOW() do MySQL (fuso
+        pode diferir do Node); o filtro agora é feito no Node.
+[FEITO] Datas iam ao navegador como "2026-09-18 15:01:52", sem fuso: erravam
+        horas se servidor e cliente estivessem em fusos diferentes (o botão de
+        cancelar e os horários do histórico), e o Safari não lê esse formato.
+        Agora são ISO 8601 em UTC; a conversão para MySQL é feita só ao gravar.
+[FEITO] Cadastro aceitava e-mail inválido, CPF de 1 dígito, textos gigantes e
+        telefone/endereço que não fossem texto (um valor assim faz TODAS as
+        gravações seguintes falharem). Validação de tipo e tamanho adicionada.
+[FEITO] CPF duplicado passava se a máscara fosse diferente. Agora compara só
+        os dígitos e guarda sempre no formato 000.000.000-00.
+[FEITO] Cadastros simultâneos com o mesmo e-mail passavam todos (condição de
+        corrida durante o await do bcrypt). Conferência refeita após o hash.
+[FEITO] O interruptor "Disponível" do prestador não fazia nada: agora quem está
+        indisponível não vê nem aceita chamados (como o README e a Ajuda dizem).
+[FEITO] Um prestador podia aceitar vários chamados e os extras ficavam presos,
+        invisíveis. Agora é um atendimento por vez.
+[FEITO] PATCH de disponibilidade recusado com 400 já tinha alterado o estado.
+[FEITO] Login de admin e redefinição de senha não tinham limite de tentativas.
+[FEITO] Trocar/redefinir a senha agora derruba as outras sessões da conta.
+[FEITO] Sessões expiradas e contadores do limitador nunca saíam da memória.
+[FEITO] A rota de geocodificação era pública e usava a fila única do Nominatim;
+        agora exige login de cliente.
+[FEITO] O e-mail de redefinição inseria o nome do usuário sem escapar (injeção
+        de HTML). E o envio era "await": a resposta demorava mais quando o
+        e-mail existia, permitindo descobrir e-mails cadastrados pelo tempo.
+[FEITO] Falha ao subir (porta em uso, TLS_* incompleto) agora mostra mensagem
+        clara; antes virava um erro solto.
+[FEITO] O .env agora é lido da pasta do projeto mesmo que o servidor seja
+        iniciado de outra pasta. Criados .env e .env.example (o README já
+        citava o .env.example, que não existia).
+[FEITO] dotenv e selfsigned estavam no package.json mas não instalados em
+        node_modules (npm start quebrava). npm install executado.
+
+Banco de dados (análise do banco online, com backup antes)
+[FEITO] Análise completa: nenhum registro órfão, nenhum status inválido,
+        nenhuma nota fora de 1..5, nenhum CPF/e-mail duplicado, senhas todas em
+        bcrypt.
+[FEITO] Chaves estrangeiras e CHECK criados nas tabelas reais (as tabelas
+        chamados/prestadores/avaliacoes não tinham nenhuma).
+[FEITO] Os 11 prestadores estavam "disponíveis" sem sessão (o flag nunca era
+        desligado). Agora sair da conta e reiniciar o servidor os deixam
+        indisponíveis.
+[FEITO] Conferido linha a linha, depois da regravação com as novas chaves: nada
+        perdido nem alterado além de "disponivel". Backup completo em
+        Downloads\backup-banco-soscar-2026-09-18.json.
+
+Frontend
+[FEITO] Depois de "Cheguei ao local" o cliente via "A caminho" (rótulo errado);
+        agora: Aceito (a caminho) -> No local. Corrigido também no filtro do
+        painel admin.
+[FEITO] Sessão expirada/servidor reiniciado: o painel ficava falhando em
+        silêncio. Agora volta ao login com aviso.
+[FEITO] Depois de "Sair" como admin, "Acesso administrativo" abria o painel
+        vazio sem pedir senha.
+[FEITO] Ao trocar de usuário no mesmo navegador, o histórico do anterior
+        aparecia por um instante. Listas são limpas ao sair.
+[FEITO] Polling: erros viravam "unhandled rejection", requisições se
+        empilhavam com rede lenta. Agora pula o tique se o anterior não
+        terminou e avisa uma vez só.
+[FEITO] O redesenho do painel admin a cada 8 s apagava o nome de categoria que
+        estava sendo digitado.
+[FEITO] Interruptor "Disponível" ficava ligado na tela mesmo se o servidor
+        falhasse ao salvar.
+[FEITO] Mapa: ícone do Mecânico nunca aparecia (falta de tratamento de acento);
+        rotas antigas ficavam acumuladas no mapa; a rota era recalculada no
+        servidor público OSRM a cada 3 s e o balão piscava.
+[FEITO] Service worker guardava TODOS os tiles do OpenStreetMap no cache do
+        aparelho, sem limite. Agora só cacheia arquivos do próprio app.
+[FEITO] Falha de rede mostrava "Failed to fetch"; agora mensagem em português.
+        localStorage bloqueado (modo privado) não quebra mais o app/tema.
+[FEITO] Favicon declarado como SVG apontando para um PNG; nomes de categoria
+        sem escape nos <select>.
+
+
+2. PRIORIDADE ALTA (ainda a fazer)
+----------------------------------
+
+2.1 Persistência por registro em vez de apagar e recriar tudo
+- salvar() ainda faz DELETE + INSERT de TODAS as tabelas a cada alteração.
+  Com o banco online (latência de rede) cada ação do usuário passa a esperar
+  dezenas de idas e vindas ao servidor, e o tempo cresce com o volume de dados.
+- Fazer INSERT/UPDATE/DELETE apenas do registro alterado (repositórios por
+  entidade) ou, como passo intermediário, INSERT em lote (um por tabela).
+
+2.2 Se o banco for configurado e falhar, não subir "vazio"
+- Com DB_HOST definido, uma senha errada ou IP não autorizado faz o sistema
+  subir em memória com apenas um aviso no console. Em produção o correto é
+  tentar de novo/encerrar, para ninguém usar um sistema sem os dados reais.
+
+2.3 Chamado em local falso
+- Sem GPS e com endereço não localizado, o chamado é aberto no centro de São
+  Paulo ("posição de demonstração"). Num socorro real o prestador iria ao
+  lugar errado. Bloquear e pedir confirmação/ajuste no mapa.
+
+2.4 Sessões persistentes
+- Tokens ficam em memória: reiniciar o servidor desloga todos. Guardar no banco
+  ou usar JWT com refresh.
+
+2.5 Cabeçalhos de segurança e HTTPS em produção
+- Adicionar Content-Security-Policy, X-Content-Type-Options, Referrer-Policy,
+  proteção contra iframe (helmet). Leaflet e fontes vêm de CDN: usar SRI ou
+  hospedar localmente.
+- O servidor sempre sobe em HTTPS com certificado autoassinado. Atrás de proxy
+  reverso (hospedagem) é preciso poder rodar em HTTP e configurar
+  "trust proxy"; sem isso todos os usuários compartilham o mesmo IP no
+  limitador de tentativas (10 logins por minuto no total).
+
+2.6 Política de senha
+- Mínimo atual é 4 caracteres. Subir para 8 e bloquear senhas comuns.
+- Validar dígitos verificadores do CPF (hoje só exige 11 dígitos) e formato do
+  telefone.
+- Guardar o token de redefinição com hash (hoje fica em texto no banco).
+
+
+3. REGRAS DE NEGÓCIO
+--------------------
+
+3.1 Chamado que ninguém aceita fica "aberto" para sempre. Definir expiração e
+    cancelar automaticamente (ou avisar o cliente).
+3.2 Centralizar as transições de status numa função que valide as permitidas
+    (aberto->aceito->em_andamento->concluido; cancelamentos).
+3.3 [PARCIAL] Disponibilidade do prestador: o interruptor vale, sair da conta
+    desliga a disponibilidade e, ao iniciar, o servidor zera as que ficaram
+    "presas". Falta gravar a data da última localização e considerar
+    indisponível quem não atualiza há muito tempo.
+3.4 Distância real por ruas (OSRM/GraphHopper/Valhalla). O mapa usa hoje o
+    servidor de demonstração do OSRM, que não é para produção. O filtro de raio
+    do servidor ainda usa linha reta (Haversine).
+3.5 Aceite concorrente é seguro em um único processo Node. Se houver mais de
+    uma instância, usar UPDATE condicional no MySQL e verificar linhas afetadas.
+3.6 Auditoria administrativa: quem cancelou, quando e por quê.
+
+
+4. OPENSTREETMAP E NOMINATIM
+----------------------------
+
+4.1 Cache de geocodificação: limitar tamanho e dar validade (hoje cresce sem
+    limite e se perde ao reiniciar).
+4.2 Camada para trocar de provedor (Nominatim próprio ou outro).
+4.3 Manter a política do Nominatim (1 req/s, User-Agent com contato real em
+    OSM_USER_AGENT, atribuição visível, sem autocomplete/lote).
+4.4 [FEITO] Validação de coordenadas.
+
+
+5. FRONTEND
+-----------
+
+5.1 [PARCIAL] Erros: mensagens claras já existem; falta botão "tentar de novo"
+    e diferenciar permissão de GPS negada de serviço indisponível.
+5.2 [PARCIAL] Polling: sem sobreposição e sem repetição de aviso. Falta pausar
+    com a aba oculta (Page Visibility), backoff e, melhor, SSE/WebSocket.
+5.3 Separar o app.js (mais de 1.200 linhas) em módulos: auth, cliente,
+    prestador, admin, chamados, localizacao, avaliacao.
+5.4 Acessibilidade: as estrelas da avaliação são <span> sem foco de teclado nem
+    aria; o modal de confirmação não prende o foco; falta aria-live nas
+    mudanças de status; conferir contraste.
+5.5 Imagens: img/logo.png tem 809 KB e é usado até em 118x70 no topo. Gerar
+    versões redimensionadas/WebP. public/js/logo.svg é cópia sem uso.
+5.6 PWA: o manifest só tem ícone SVG; adicionar PNG 192 e 512 (instalação no
+    Android) e alinhar theme-color (#181818 no HTML, #0b0a14 no manifest).
+5.7 No mapa do prestador, o local do cliente usa o ícone da categoria (igual ao
+    do próprio prestador); usar o marcador de pedido de socorro.
+
+
+6. BANCO DE DADOS
+-----------------
+
+6.1 Alinhar sos_veiculos_mysql.sql com as tabelas que o app realmente cria
+    (clientes/prestadores/chamados..., ids UUID). Hoje são desenhos diferentes.
+    Ele também faz CREATE DATABASE sos_car, que não funciona em hospedagem
+    compartilhada.
+6.2 [FEITO] Chaves estrangeiras e CHECK (status do chamado, nota 1 a 5) nas
+    tabelas reais, no banco online e em bancos novos (migrations/001). Faltam
+    índices extras (status, datas), que só importam quando o app deixar de
+    carregar tudo em memória.
+6.3 [PARCIAL] Existe a pasta migrations com a 001. Falta um executor
+    automático (hoje aplicada à mão) e migrações para futuras mudanças, em vez
+    de depender do CREATE TABLE IF NOT EXISTS.
+6.4 Colunas espaciais/índices geográficos, se o volume crescer.
+6.5 FUSO HORÁRIO DAS DATAS: o app grava DATETIME no horário do computador onde
+    roda (hoje Brasília, UTC-3), mas o servidor MySQL da hospedagem está em UTC.
+    Se o sistema for publicado num servidor com fuso diferente, todas as datas
+    já gravadas aparecerão deslocadas (ex.: 3 horas). Antes de publicar, gravar
+    em UTC (pool com timezone 'Z') e converter os dados existentes, ou fixar
+    TZ=America/Sao_Paulo no servidor.
+6.6 UMA INSTÂNCIA POR BANCO: cada instância regrava o banco inteiro a partir da
+    própria memória. Rodar o app no seu computador e na hospedagem ao mesmo
+    tempo, contra o mesmo banco, faz uma apagar o que a outra gravou. Até a
+    persistência por registro (2.1), usar um banco para o desenvolvimento e
+    outro para produção.
+6.7 Tabelas antigas sem uso no banco online (cliente, prestador, chamado,
+    avaliacao, categoria_servico — vieram do sos_veiculos_mysql.sql, estão
+    vazias exceto categoria_servico). Decidir entre apagá-las ou manter como
+    modelo conceitual do TCC; hoje só geram confusão.
+6.8 O MariaDB da hospedagem roda sem modo estrito (sql_mode sem
+    STRICT_TRANS_TABLES): texto maior que a coluna é cortado em silêncio em vez
+    de dar erro. A validação da API evita isso, mas vale ativar o modo estrito.
+6.9 Dados de teste: 7 cadastros anteriores à validação (CPF com 8 a 10 dígitos,
+    um e-mail sem domínio) e 5 chamados esquecidos (3 "aceito" desde 31/08 e
+    14/09, 1 "aberto" e 1 "em andamento"). Cliente com chamado "aceito" há mais
+    de 1 minuto não consegue cancelar nem abrir outro; só o prestador ou o admin
+    encerram. Limpar pelo painel admin e criar expiração automática (3.1).
+    Contas de teste criadas em 18/09/2026: cliente@soscar.com (senha: cliente)
+    e prestador@soscar.com (senha: prestador, categoria Mecânico). São senhas
+    óbvias num banco online: apagar essas contas antes de publicar o sistema.
+
+
+7. TESTES E QUALIDADE
+---------------------
+
+7.1 Transformar os testes feitos nesta varredura em testes automatizados
+    (node --test): cadastro/login, aceite concorrente, cancelamento, avaliação,
+    redefinição de senha, coordenadas inválidas, robustez a entradas erradas.
+7.2 ESLint + Prettier.
+7.3 Logs estruturados (data, rota, status, duração, id da requisição), sem
+    senhas/tokens.
+7.4 [PARCIAL] /health existe (mostra mysql/memoria e falha de gravação). Falta
+    testar a conexão real com o MySQL e monitorar o Nominatim.
+
+
+8. MELHORIAS DE PRODUTO
+-----------------------
+
+8.1 Notificações em tempo real (SSE/WebSocket) no lugar de polling.
+8.2 Chat interno sem expor o telefone.
+8.3 Histórico completo (categoria, prestador, duração, distância, motivo do
+    cancelamento).
+8.4 Avaliações avançadas (resposta do prestador, denúncia, moderação).
+8.5 Validação/aprovação de prestadores (documentos, bloqueio, suspensão).
+8.6 LGPD: política de retenção, ocultar dados pessoais após o chamado e
+    informar o uso da localização.
