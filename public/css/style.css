@@ -2994,3 +2994,19 @@ body.mapa-fullscreen {
 @media (prefers-reduced-motion: reduce) {
   .cartao-info, .painel-notificacoes, .cartao-info-saindo { animation: none; }
 }
+
+
+/* ---------- Tela de login: título e linha "Esqueceu a senha? / Criar conta" ---------- */
+.titulo-auth {
+  margin: 4px 0 18px;
+  font-size: 22px;
+  text-align: center;
+}
+.auth-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* "Criar conta" à esquerda, "Esqueceu sua senha?" à direita */
+  gap: 12px;
+  margin-top: 2px;
+}
+.auth-links-centro { justify-content: center; }

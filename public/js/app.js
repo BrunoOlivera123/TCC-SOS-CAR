@@ -602,17 +602,20 @@
   // =================================================================
   // Tela de autenticação (login / cadastro, cliente / prestador)
   // =================================================================
-  const segPerfil = document.getElementById('seg-perfil'); // abas "Sou cliente" / "Sou prestador"
-  const segModo = document.getElementById('seg-modo'); // abas "Entrar" / "Criar conta"
+  const segPerfil = document.getElementById('seg-perfil'); // abas "Sou cliente" / "Sou prestador" (agora só no formulário de cadastro)
+  const tituloAuth = document.getElementById('titulo-auth'); // "Login" ou "Criar conta"
+  const btnIrCadastro = document.getElementById('btn-ir-cadastro'); // "Criar conta" (na tela de login)
+  const btnIrLogin = document.getElementById('btn-ir-login'); // "Já tenho conta" (na tela de cadastro)
   const campoCategoria = document.getElementById('campo-categoria'); // só aparece para prestador
   const formLogin = document.getElementById('form-login');
   const formCadastro = document.getElementById('form-cadastro');
   const authErro = document.getElementById('auth-erro');
 
-  const cartaoAuth = segModo.closest('.cartao-auth');
+  const cartaoAuth = formLogin.closest('.cartao-auth');
   // Índice de cada campo, usado no atraso em cascata da entrada (CSS: --i).
   [formLogin, formCadastro].forEach((f) => [...f.children].forEach((c, i) => c.style.setProperty('--i', i)));
-  let perfilSelecionado = 'cliente'; // guarda a aba ativa (cliente/prestador) fora do DOM
+  let perfilSelecionado = 'cliente'; // aba ativa do CADASTRO (cliente/prestador); o login não usa mais
+  let modoAuth = 'login'; // 'login' ou 'cadastro': qual formulário está visível
 
   // Clique nas abas "Sou cliente" / "Sou prestador": marca visualmente a
   // aba escolhida e mostra/esconde o campo de categoria, que só faz
@@ -631,14 +634,11 @@
     });
   });
 
-  // Clique nas abas "Entrar" / "Criar conta": alterna qual dos dois
-  // formulários fica visível.
-  segModo.addEventListener('click', (e) => {
-    const botao = e.target.closest('[data-modo]');
-    if (!botao) return;
-    const modo = botao.dataset.modo;
-    if (botao.classList.contains('ativo')) return;
-    [...segModo.children].forEach((b) => b.classList.toggle('ativo', b === botao));
+  // Alterna entre a tela de login e a de criar conta (os dois botões de texto:
+  // "Criar conta" no login e "Já tenho conta" no cadastro).
+  function mostrarModoAuth(modo) {
+    if (modo === modoAuth) return;
+    modoAuth = modo;
     // O card cresce/encolhe (Anim.altura): o formulário antigo some, a altura
     // anima e os campos novos entram em cascata. Card segue centralizado.
     cartaoAuth.classList.add('trocando');
@@ -646,12 +646,15 @@
     Anim.altura(cartaoAuth, () => {
       formLogin.classList.toggle('oculto', modo !== 'login');
       formCadastro.classList.toggle('oculto', modo !== 'cadastro');
+      tituloAuth.textContent = modo === 'login' ? 'Login' : 'Criar conta';
       esconderErro();
     }, {
       sai: modo === 'cadastro' ? formLogin : formCadastro,
       entra: modo === 'cadastro' ? formCadastro : formLogin
     });
-  });
+  }
+  btnIrCadastro.addEventListener('click', () => mostrarModoAuth('cadastro'));
+  btnIrLogin.addEventListener('click', () => mostrarModoAuth('login'));
 
   // Mostra a mensagem de erro no cartão de login/cadastro, animando a altura do cartão.
   function mostrarErro(mensagem) {
@@ -674,10 +677,22 @@
     const dados = Object.fromEntries(new FormData(formLogin));
     await comCarregamento(formLogin.querySelector('button[type="submit"]'), 'Entrando...', async () => {
       try {
-        const { token, usuario } = await API.login({ tipo: perfilSelecionado, ...dados });
+        // Sem escolher perfil: o servidor descobre se a conta é de cliente ou de prestador.
+        let resposta;
+        try {
+          resposta = await API.login(dados);
+        } catch (err) {
+          if (err.codigo !== 'ESCOLHER_PERFIL') throw err;
+          // Mesmo e-mail e senha em uma conta de cliente E uma de prestador: pergunta qual usar.
+          const comoPrestador = await confirmar(
+            'Este email tem uma conta de cliente e uma de prestador. Deseja entrar como PRESTADOR? (Se cancelar, você entra como cliente.)'
+          );
+          resposta = await API.login({ ...dados, tipo: comoPrestador ? 'prestador' : 'cliente' });
+        }
+        const { token, usuario, tipo } = resposta;
         API.definirToken(token);
         formLogin.reset();
-        entrarComoUsuario(perfilSelecionado, usuario);
+        entrarComoUsuario(tipo, usuario);
       } catch (err) {
         mostrarErro(err.message);
       }
@@ -817,10 +832,14 @@
 
   // Monta o corpo e chama POST /api/auth/google. "confirmarVinculo" só vai
   // como true depois que o usuário aceitou o aviso de vínculo de conta.
-  function enviarCredencialGoogle(credential, confirmarVinculo) {
+  function enviarCredencialGoogle(credential, confirmarVinculo, tipoEscolhido) {
     const categoriaId = formCadastro.elements.categoriaId ? formCadastro.elements.categoriaId.value : '';
-    const corpo = { credential, tipo: perfilSelecionado };
-    if (perfilSelecionado === 'prestador' && categoriaId) corpo.categoriaId = Number(categoriaId);
+    const corpo = { credential };
+    // Na tela de LOGIN não mandamos o tipo (o servidor acha a conta existente).
+    // Na tela de CRIAR CONTA mandamos o perfil escolhido (cliente/prestador).
+    if (tipoEscolhido) corpo.tipo = tipoEscolhido;
+    else if (modoAuth === 'cadastro') corpo.tipo = perfilSelecionado;
+    if (corpo.tipo === 'prestador' && categoriaId) corpo.categoriaId = Number(categoriaId);
     if (confirmarVinculo) corpo.confirmarVinculo = true;
     return API.loginGoogle(corpo);
   }
@@ -830,8 +849,19 @@
     esconderErro();
     try {
       let resultado;
+      let tipoEscolhido; // só preenchido se o servidor pedir para escolher cliente/prestador
       try {
-        resultado = await enviarCredencialGoogle(resposta.credential, false);
+        try {
+          resultado = await enviarCredencialGoogle(resposta.credential, false);
+        } catch (err) {
+          if (err.codigo !== 'ESCOLHER_PERFIL') throw err;
+          // O mesmo Google está ligado a uma conta de cliente e a uma de prestador.
+          const comoPrestador = await confirmar(
+            'Este Google está ligado a uma conta de cliente e a uma de prestador. Deseja entrar como PRESTADOR? (Se cancelar, você entra como cliente.)'
+          );
+          tipoEscolhido = comoPrestador ? 'prestador' : 'cliente';
+          resultado = await enviarCredencialGoogle(resposta.credential, false, tipoEscolhido);
+        }
       } catch (err) {
         if (err.codigo !== 'CONFIRMAR_VINCULO') throw err;
         // Já existe uma conta com senha neste e-mail: vincular ao Google remove a
@@ -839,7 +869,7 @@
         // confirmar, reenviamos o MESMO token (o nonce ainda não foi gasto).
         const aceitou = await confirmar(err.message);
         if (!aceitou) return;
-        resultado = await enviarCredencialGoogle(resposta.credential, true);
+        resultado = await enviarCredencialGoogle(resposta.credential, true, tipoEscolhido);
       }
 
       if (resultado.pendente) {
@@ -847,14 +877,15 @@
         return;
       }
       API.definirToken(resultado.token);
-      entrarComoUsuario(perfilSelecionado, resultado.usuario);
+      entrarComoUsuario(resultado.tipo, resultado.usuario);
       if (resultado.vinculada) {
         toast('Conta vinculada ao Google. Para voltar a entrar com senha, use "Esqueceu sua senha?".', 'sucesso');
       }
     } catch (err) {
-      if (err.codigo === 'CATEGORIA_OBRIGATORIA') {
-        // Prestador novo precisa escolher a categoria na aba "Criar conta".
-        segModo.querySelector('[data-modo="cadastro"]').click();
+      if (err.codigo === 'CATEGORIA_OBRIGATORIA' || err.codigo === 'PERFIL_NECESSARIO') {
+        // Prestador novo precisa escolher a categoria, e quem ainda não tem conta
+        // precisa dizer se é cliente ou prestador: ambos acontecem em "Criar conta".
+        mostrarModoAuth('cadastro');
       }
       mostrarErro(err.message);
     } finally {

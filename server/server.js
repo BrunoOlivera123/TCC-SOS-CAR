@@ -742,8 +742,12 @@ app.post('/api/auth/google', limitarRequisicoes(60 * 1000, 10), assincrono(async
   if (!GOOGLE_CLIENT_ID) {
     return res.status(503).json({ erro: 'Login com Google não está disponível no momento.' });
   }
-  const { credential, tipo, categoriaId, confirmarVinculo } = req.body || {};
-  if (!['cliente', 'prestador'].includes(tipo)) {
+  const { credential, categoriaId, confirmarVinculo } = req.body || {};
+  // "tipo" é opcional: na tela de LOGIN o usuário não escolhe cliente/prestador;
+  // para quem já tem conta, descobrimos o tipo aqui embaixo. Só é obrigatório
+  // para CRIAR uma conta nova (aba "Criar conta").
+  let tipo = (req.body || {}).tipo;
+  if (tipo !== undefined && tipo !== null && tipo !== '' && !['cliente', 'prestador'].includes(tipo)) {
     return res.status(400).json({ erro: 'Tipo de usuário inválido.' });
   }
 
@@ -753,6 +757,35 @@ app.post('/api/auth/google', limitarRequisicoes(60 * 1000, 10), assincrono(async
   // simultâneas com o mesmo token não conseguem passar juntas.
   const google = await verificarTokenGoogle(credential, req);
   if (!google) return res.status(401).json({ erro: ERRO_GOOGLE_INVALIDO });
+
+  // Sem "tipo" (login): procura a conta existente nas duas tabelas — primeiro
+  // pelo "sub" do Google; se não houver, pelo e-mail (conta que ainda vai ser
+  // vinculada). Ainda NÃO gastamos o nonce aqui: se for preciso perguntar algo
+  // ao usuário, o token continua válido para o reenvio.
+  if (!tipo) {
+    const tiposComSub = ['cliente', 'prestador'].filter((t) =>
+      (t === 'cliente' ? db.clientes : db.prestadores).some((u) => u.googleId === google.sub)
+    );
+    const candidatos = tiposComSub.length
+      ? tiposComSub
+      : ['cliente', 'prestador'].filter((t) =>
+          (t === 'cliente' ? db.clientes : db.prestadores).some((u) => u.email.toLowerCase() === google.email)
+        );
+    if (candidatos.length === 0) {
+      return res.status(404).json({
+        erro: 'Não encontramos uma conta com este Google. Para criar uma, escolha Cliente ou Prestador em "Criar conta" e use o botão do Google.',
+        codigo: 'PERFIL_NECESSARIO'
+      });
+    }
+    if (candidatos.length > 1) {
+      return res.status(409).json({
+        erro: 'Este Google está ligado a uma conta de cliente e a uma de prestador. Escolha como deseja entrar.',
+        codigo: 'ESCOLHER_PERFIL',
+        tipos: candidatos
+      });
+    }
+    tipo = candidatos[0];
+  }
 
   const colecao = tipo === 'cliente' ? db.clientes : db.prestadores;
   let usuario = colecao.find((u) => u.googleId === google.sub);
@@ -847,7 +880,7 @@ app.post('/api/auth/google', limitarRequisicoes(60 * 1000, 10), assincrono(async
 
   auditar('google_login', { req, tipo, usuarioId: usuario.id });
   const token = criarSessao(tipo, usuario.id);
-  res.status(novaConta ? 201 : 200).json({ token, usuario: paraPublico(tipo, usuario), novaConta, vinculada });
+  res.status(novaConta ? 201 : 200).json({ token, tipo, usuario: paraPublico(tipo, usuario), novaConta, vinculada });
 }));
 
 // Completa CPF e telefone (popup do 1º pedido/aceite). Age sempre sobre o
@@ -880,20 +913,31 @@ app.post('/api/auth/completar-perfil', autenticar(['cliente', 'prestador']), lim
   res.json({ usuario: paraPublico(tipo, usuario) });
 }));
 
-// Login: recebe tipo + email + senha, confere a senha contra o hash
-// salvo e, se bater, devolve um novo token de sessão.
+// Login: recebe email + senha (o "tipo" é opcional), confere a senha contra o
+// hash salvo e, se bater, devolve um novo token de sessão.
+//
+// A tela de login não pergunta mais "cliente ou prestador": sem "tipo", o
+// servidor procura o e-mail nas duas tabelas e entra na conta cuja senha bate.
+// Só se o MESMO e-mail tiver conta de cliente E de prestador com a MESMA senha
+// é que precisamos perguntar (409 ESCOLHER_PERFIL); o front reenvia com "tipo".
 app.post('/api/auth/login', limitarRequisicoes(60 * 1000, 10), assincrono(async (req, res) => {
-  const { tipo, email, senha } = req.body;
+  const { tipo, email, senha } = req.body || {};
   const emailNormalizado = typeof email === 'string' ? email.trim().toLowerCase() : '';
-  const colecao = tipo === 'cliente' ? db.clientes : tipo === 'prestador' ? db.prestadores : null;
-  const usuario = colecao && colecao.find((u) => u.email.toLowerCase() === emailNormalizado);
+  const tipoInformado = tipo === 'cliente' || tipo === 'prestador';
+  const tiposParaTentar = tipoInformado ? [tipo] : tipo === undefined || tipo === null || tipo === '' ? ['cliente', 'prestador'] : [];
 
   // bcrypt.compare faz o hash da senha digitada com o mesmo algoritmo e
   // compara com o hash salvo — sem nunca reverter o hash original.
-  const senhaValida =
-    usuario && usuario.senhaHash && typeof senha === 'string' && (await bcrypt.compare(senha, usuario.senhaHash));
+  const acertos = []; // contas (por tipo) cujo e-mail existe e cuja senha confere
+  for (const t of tiposParaTentar) {
+    const colecao = t === 'cliente' ? db.clientes : db.prestadores;
+    const encontrado = colecao.find((u) => u.email.toLowerCase() === emailNormalizado);
+    const confere =
+      encontrado && encontrado.senhaHash && typeof senha === 'string' && (await bcrypt.compare(senha, encontrado.senhaHash));
+    if (confere) acertos.push({ tipo: t, usuario: encontrado });
+  }
 
-  if (!senhaValida) {
+  if (acertos.length === 0) {
     // Mensagem genérica de propósito: não dizemos se foi o email ou a
     // senha que errou, para não ajudar quem estiver tentando adivinhar
     // credenciais de outra pessoa.
@@ -905,12 +949,23 @@ app.post('/api/auth/login', limitarRequisicoes(60 * 1000, 10), assincrono(async 
     });
   }
 
-  if (tipo === 'prestador' && usuario.aprovado !== true) {
+  // Só chega aqui com 2 acertos quando o "tipo" não foi informado (senha correta
+  // nas duas contas): o usuário escolhe em qual quer entrar.
+  if (acertos.length > 1) {
+    return res.status(409).json({
+      erro: 'Este email tem uma conta de cliente e uma de prestador. Escolha como deseja entrar.',
+      codigo: 'ESCOLHER_PERFIL',
+      tipos: acertos.map((a) => a.tipo)
+    });
+  }
+
+  const { tipo: tipoLogado, usuario } = acertos[0];
+  if (tipoLogado === 'prestador' && usuario.aprovado !== true) {
     return res.status(403).json({ erro: 'Seu cadastro está pendente de aprovação do administrador.' });
   }
 
-  const token = criarSessao(tipo, usuario.id);
-  res.json({ token, usuario: paraPublico(tipo, usuario) });
+  const token = criarSessao(tipoLogado, usuario.id);
+  res.json({ token, tipo: tipoLogado, usuario: paraPublico(tipoLogado, usuario) });
 }));
 
 // Logout: invalida o token atual (ver auth-middleware.js). Prestador que sai

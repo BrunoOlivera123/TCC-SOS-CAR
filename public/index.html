@@ -138,17 +138,8 @@
         </div>
 
         <div class="cartao cartao-auth">
-          <!-- Abas: Sou cliente / Sou prestador -->
-          <div class="segmentado" id="seg-perfil">
-            <button type="button" class="segmentado-opcao ativo" data-perfil="cliente">Sou cliente</button>
-            <button type="button" class="segmentado-opcao" data-perfil="prestador">Sou prestador</button>
-          </div>
-
-          <!-- Abas: Entrar / Criar conta -->
-          <div class="segmentado segmentado-secundario" id="seg-modo">
-            <button type="button" class="segmentado-opcao ativo" data-modo="login">Entrar</button>
-            <button type="button" class="segmentado-opcao" data-modo="cadastro">Criar conta</button>
-          </div>
+          <!-- Título do cartão: "Login" ou "Criar conta" (trocado em app.js, mostrarModoAuth) -->
+          <h2 class="titulo-auth" id="titulo-auth">Login</h2>
 
           <!-- Mensagem de erro de login/cadastro (preenchida via JS) -->
           <p id="auth-erro" class="mensagem-erro oculto"></p>
@@ -171,11 +162,19 @@
               </div>
             </label>
             <button type="submit" class="botao-primario">Entrar</button>
-            <button type="button" class="botao-link" id="btn-esqueci-senha">Esqueceu sua senha?</button>
+            <div class="auth-links">
+              <button type="button" class="botao-link" id="btn-ir-cadastro">Criar conta</button>
+              <button type="button" class="botao-link" id="btn-esqueci-senha">Esqueceu sua senha?</button>
+            </div>
           </form>
 
           <!-- Formulário de cadastro (serve para cliente e prestador) -->
           <form id="form-cadastro" class="formulario oculto">
+            <!-- Quem está criando a conta escolhe aqui se é cliente ou prestador -->
+            <div class="segmentado" id="seg-perfil">
+              <button type="button" class="segmentado-opcao ativo" data-perfil="cliente">Sou cliente</button>
+              <button type="button" class="segmentado-opcao" data-perfil="prestador">Sou prestador</button>
+            </div>
             <label>Nome completo
               <input type="text" name="nome" required />
             </label>
@@ -208,6 +207,9 @@
               <div class="categoria-cards"></div>
             </label>
             <button type="submit" class="botao-primario">Criar conta</button>
+            <div class="auth-links auth-links-centro">
+              <button type="button" class="botao-link" id="btn-ir-login">Já tenho conta · Entrar</button>
+            </div>
           </form>
 
           <!-- Login com Google: só aparece se o servidor tiver GOOGLE_CLIENT_ID (ver app.js, iniciarGoogle) -->
