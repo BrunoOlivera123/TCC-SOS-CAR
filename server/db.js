@@ -44,6 +44,8 @@ const db = {
   chamadoEventos: [],
   avaliacoes: [],
   redefinicoesSenha: [],
+  // Códigos de 6 dígitos da recuperação de senha (só o HMAC do código é guardado).
+  codigosRedefinicao: [],
   // Central de Notificações (cliente e prestador). Cada linha pertence a UM
   // usuário e guarda o estado de leitura — é ele que mantém o contador de
   // "não lidas" correto depois de atualizar a página ou sair e entrar.
@@ -95,6 +97,7 @@ function aplicarEstadoPadrao() {
   db.chamadoEventos = [];
   db.avaliacoes = [];
   db.redefinicoesSenha = [];
+  db.codigosRedefinicao = [];
   db.notificacoes = [];
   modoFallback = true;
 }
@@ -267,6 +270,22 @@ async function garantirEstrutura() {
       usuario_id VARCHAR(36) NOT NULL,
       expira_em DATETIME NOT NULL
     )`,
+    // Códigos de 6 dígitos da recuperação de senha. "codigo_hash" é um HMAC
+    // (nunca o código em si). "tentativas" conta os erros de digitação; "usado"
+    // marca códigos já consumidos ou invalidados por um pedido mais novo.
+    `CREATE TABLE IF NOT EXISTS codigos_redefinicao (
+      id VARCHAR(36) PRIMARY KEY,
+      tipo VARCHAR(20) NOT NULL,
+      usuario_id VARCHAR(36) NOT NULL,
+      codigo_hash VARCHAR(64) NOT NULL,
+      expira_em DATETIME NOT NULL,
+      tentativas INT NOT NULL DEFAULT 0,
+      usado BOOLEAN NOT NULL DEFAULT FALSE,
+      criado_em DATETIME NOT NULL,
+      INDEX idx_codigos_redefinicao_usuario (usuario_id),
+      INDEX idx_codigos_redefinicao_expira (expira_em),
+      INDEX idx_codigos_redefinicao_usado (usado)
+    )`,
     // Sem FOREIGN KEY de propósito (mesmo motivo de chamado_eventos): o estado
     // inteiro é regravado a cada salvar() e a central não pode derrubar a
     // inicialização em bancos antigos. "chave" impede notificação duplicada
@@ -422,6 +441,21 @@ function normalizarRedefinicao(row) {
   };
 }
 
+// Linha da tabela codigos_redefinicao -> objeto. "codigoHash" é o HMAC do
+// código, nunca o código utilizável.
+function normalizarCodigoRedefinicao(row) {
+  return {
+    id: row.id,
+    tipo: row.tipo,
+    usuarioId: row.usuario_id,
+    codigoHash: row.codigo_hash,
+    expiraEm: row.expira_em,
+    tentativas: Number(row.tentativas) || 0,
+    usado: !!row.usado,
+    criadoEm: row.criado_em
+  };
+}
+
 // Linha da tabela notificacoes (Central de Notificações) -> objeto notificação.
 function normalizarNotificacao(row) {
   return {
@@ -452,6 +486,7 @@ async function carregar() {
     const [eventos] = await conn.query('SELECT * FROM chamado_eventos ORDER BY ordem');
     const [avaliacoes] = await conn.query('SELECT * FROM avaliacoes ORDER BY data_avaliacao');
     const [redefinicoes] = await conn.query('SELECT * FROM redefinicoes_senha');
+    const [codigosRedef] = await conn.query('SELECT * FROM codigos_redefinicao');
     const [notificacoes] = await conn.query('SELECT * FROM notificacoes ORDER BY data_criacao');
 
     modoFallback = false;
@@ -471,6 +506,10 @@ async function carregar() {
       // fuso horário do servidor MySQL pode ser diferente do fuso do Node,
       // que é quem grava as datas.
       redefinicoesSenha: redefinicoes.map(normalizarRedefinicao).filter((r) => new Date(r.expiraEm) > agora),
+      // Códigos ficam até 1 h após o pedido (para contar os reenvios por hora).
+      codigosRedefinicao: codigosRedef
+        .map(normalizarCodigoRedefinicao)
+        .filter((c) => agora - new Date(c.criadoEm).getTime() < 60 * 60 * 1000),
       notificacoes: notificacoes.map(normalizarNotificacao)
     });
 
@@ -497,6 +536,7 @@ async function gravarSnapshot() {
 
     try {
       await conn.query('DELETE FROM redefinicoes_senha');
+      await conn.query('DELETE FROM codigos_redefinicao');
       await conn.query('DELETE FROM notificacoes');
       await conn.query('DELETE FROM avaliacoes');
       await conn.query('DELETE FROM chamado_eventos');
@@ -584,6 +624,15 @@ async function gravarSnapshot() {
           await conn.query(
             'INSERT INTO redefinicoes_senha (token, tipo, usuario_id, expira_em) VALUES (?, ?, ?, ?)',
             [redefinicao.token, redefinicao.tipo, redefinicao.usuarioId, paraDataHoraMysql(redefinicao.expiraEm)]
+          );
+        }
+      }
+
+      if (Array.isArray(db.codigosRedefinicao) && db.codigosRedefinicao.length > 0) {
+        for (const c of db.codigosRedefinicao) {
+          await conn.query(
+            'INSERT INTO codigos_redefinicao (id, tipo, usuario_id, codigo_hash, expira_em, tentativas, usado, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [c.id, c.tipo, c.usuarioId, c.codigoHash, paraDataHoraMysql(c.expiraEm), c.tentativas || 0, !!c.usado, paraDataHoraMysql(c.criadoEm)]
           );
         }
       }

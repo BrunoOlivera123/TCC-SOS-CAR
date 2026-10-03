@@ -23,7 +23,7 @@ const selfsigned = require('selfsigned');
 const { db, salvar, inicializarBanco, estadoPersistencia } = require('./db');
 const { criarSessao, encerrarSessao, encerrarSessoesDoUsuario, autenticar } = require('./auth-middleware');
 const { distanciaKm } = require('./utils/distancia');
-const { enviarEmailRedefinicao } = require('./email');
+const { enviarEmailCodigoRedefinicao } = require('./email');
 const { geocodificar, reverseGeocodificar } = require('./geocodificacao');
 // Verificação local do ID token do Google + nonce de uso único (ver google-auth.js).
 const { verificarIdToken, gerarNonce, consumirNonce } = require('./google-auth');
@@ -365,14 +365,55 @@ function raioDoPrestador(prestador) {
 }
 
 // ---------------------------------------------------------------
-// Redefinição de senha: o token enviado por e-mail é aleatório (256 bits) e só
-// o seu HASH (SHA-256) é guardado — no banco ou na memória nunca existe um
-// token utilizável. Vale 1 hora e é de uso único.
+// Redefinição de senha por CÓDIGO DE 6 DÍGITOS enviado por e-mail.
+//
+// Fluxo: esqueci-senha (gera e envia o código) -> validar-codigo (confere o
+// código e emite um token temporário) -> redefinir-senha (usa o token e grava
+// a nova senha). Segurança:
+//   - o código vem de crypto.randomInt (CSPRNG), vale 10 min e é de uso único;
+//   - só o HMAC do código é guardado (chave: CODIGO_REDEFINICAO_SEGREDO);
+//   - no máximo 5 tentativas por código; um pedido novo invalida os antigos;
+//   - 1 e-mail por conta por minuto e no máximo 5 códigos por hora;
+//   - o token emitido após a validação também só existe como hash (SHA-256),
+//     vale 10 min, é de uso único e NÃO é o token de sessão do login.
 // ---------------------------------------------------------------
-const TOKEN_REDEFINICAO_TTL_MS = 60 * 60 * 1000;
-const INTERVALO_MIN_NOVO_TOKEN_MS = 60 * 1000; // no máximo 1 e-mail por conta por minuto
-const MENSAGEM_ESQUECI_SENHA = 'Se o email estiver cadastrado, você receberá um link para redefinição.';
-const ERRO_LINK_INVALIDO = 'Link de redefinição inválido ou expirado. Peça um novo.';
+// Só com NODE_ENV=test (testes automatizados) os tempos podem ser encurtados por
+// variável de ambiente; em qualquer outro ambiente valem sempre os padrões.
+const emTeste = process.env.NODE_ENV === 'test';
+const CODIGO_TTL_MS = (emTeste && Number(process.env.TESTE_CODIGO_TTL_MS)) || 10 * 60 * 1000;
+const CODIGO_MAX_TENTATIVAS = 5;
+const CODIGO_INTERVALO_MIN_MS = (emTeste && Number(process.env.TESTE_CODIGO_INTERVALO_MS)) || 60 * 1000; // no máximo 1 código por conta por minuto
+const CODIGO_MAX_POR_HORA = 5;
+const TOKEN_REDEFINICAO_TTL_MS = 10 * 60 * 1000;
+const MENSAGEM_ESQUECI_SENHA = 'Se houver uma conta associada a este email, enviaremos um código de recuperação.';
+const ERRO_CODIGO_INCORRETO = 'Esse código não está correto.';
+const ERRO_CODIGO_EXPIRADO = 'Esse código expirou. Solicite um novo código.';
+const ERRO_CODIGO_TENTATIVAS = 'Você excedeu o número de tentativas. Solicite um novo código.';
+const ERRO_LINK_INVALIDO = 'Sua verificação expirou. Solicite um novo código.';
+
+// Chave do HMAC do código. Sem CODIGO_REDEFINICAO_SEGREDO usamos uma chave
+// aleatória só desta execução: continua seguro, mas os códigos pendentes
+// deixam de valer se o servidor reiniciar (o usuário pede outro).
+const SEGREDO_CODIGO = process.env.CODIGO_REDEFINICAO_SEGREDO || crypto.randomBytes(32).toString('hex');
+if (!process.env.CODIGO_REDEFINICAO_SEGREDO) {
+  console.warn('[redefinicao] CODIGO_REDEFINICAO_SEGREDO não definido: usando chave temporária (códigos pendentes caem ao reiniciar).');
+}
+
+// HMAC do código, amarrado ao id do registro: um mesmo código gera hashes
+// diferentes em registros diferentes e o banco sozinho não permite descobri-lo.
+function hashCodigoRedefinicao(id, codigo) {
+  return crypto.createHmac('sha256', SEGREDO_CODIGO).update(`${id}:${codigo}`).digest('hex');
+}
+
+// Código de exatamente 6 dígitos, sorteado de forma criptograficamente segura
+// (000000 a 999999, com zeros à esquerda preservados).
+function gerarCodigoRedefinicao() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
+function codigoComFormatoValido(codigo) {
+  return typeof codigo === 'string' && /^\d{6}$/.test(codigo);
+}
 
 // Calcula o SHA-256 do token de redefinição. Só esse hash é guardado: quem lê o
 // banco ou o log não consegue usar o token para trocar a senha de ninguém.
@@ -385,6 +426,41 @@ function hashTokenRedefinicao(token) {
 function tokenRedefinicaoComFormatoValido(token) {
   return typeof token === 'string' && token.length >= 20 && token.length <= 128 && /^[A-Za-z0-9-]+$/.test(token);
 }
+
+// Acha a conta pelo e-mail (mesma regra do pedido: clientes primeiro). Devolve
+// { usuario, tipo } ou null.
+function localizarContaPorEmail(emailNormalizado, tipoPedido) {
+  const colecao =
+    tipoPedido === 'cliente'
+      ? db.clientes
+      : tipoPedido === 'prestador'
+        ? db.prestadores
+        : [...db.clientes, ...db.prestadores];
+  const usuario = colecao.find((u) => u.email && u.email.toLowerCase() === emailNormalizado);
+  if (!usuario) return null;
+  return { usuario, tipo: db.clientes.some((u) => u.id === usuario.id) ? 'cliente' : 'prestador' };
+}
+
+// Falhas de digitação por e-mail, em memória e para QUALQUER e-mail (exista ou
+// não): assim "5 tentativas e bloqueio" se comporta igual nos dois casos e a
+// resposta não revela se a conta existe. Um novo pedido de código zera o contador.
+const falhasCodigoPorEmail = new Map();
+const chaveFalhas = (email) => crypto.createHash('sha256').update(email).digest('hex');
+function falhasAtuais(email) {
+  const f = falhasCodigoPorEmail.get(chaveFalhas(email));
+  if (!f || Date.now() - f.inicio >= CODIGO_TTL_MS) return 0;
+  return f.total;
+}
+function registrarFalha(email) {
+  const chave = chaveFalhas(email);
+  const f = falhasCodigoPorEmail.get(chave);
+  if (!f || Date.now() - f.inicio >= CODIGO_TTL_MS) falhasCodigoPorEmail.set(chave, { inicio: Date.now(), total: 1 });
+  else f.total += 1;
+}
+setInterval(() => {
+  const agora = Date.now();
+  for (const [chave, f] of falhasCodigoPorEmail) if (agora - f.inicio >= CODIGO_TTL_MS) falhasCodigoPorEmail.delete(chave);
+}, 60 * 1000).unref();
 
 // ---------------------------------------------------------------
 // Login com Google (Google Identity Services)
@@ -840,6 +916,7 @@ app.post('/api/auth/google', limitarRequisicoes(60 * 1000, 10), assincrono(async
       vinculada = !!porEmail.senhaHash;
       porEmail.senhaHash = null;
       db.redefinicoesSenha = db.redefinicoesSenha.filter((r) => !(r.usuarioId === porEmail.id && r.tipo === tipo));
+      for (const c of db.codigosRedefinicao) if (c.usuarioId === porEmail.id && c.tipo === tipo) c.usado = true;
       encerrarSessoesDoUsuario(tipo, porEmail.id);
       usuario = porEmail;
       auditar('google_conta_vinculada', { req, tipo, usuarioId: usuario.id });
@@ -1058,6 +1135,7 @@ app.patch('/api/auth/atualizar', autenticar(['cliente', 'prestador']), limitarRe
     db.redefinicoesSenha = db.redefinicoesSenha.filter(
       (r) => !(r.usuarioId === usuario.id && r.tipo === req.sessao.tipo)
     );
+    for (const c of db.codigosRedefinicao) if (c.usuarioId === usuario.id && c.tipo === req.sessao.tipo) c.usado = true;
     // Quem estivesse logado em outro aparelho (ou com a senha antiga
     // vazada) perde o acesso; a sessão atual continua valendo.
     encerrarSessoesDoUsuario(req.sessao.tipo, req.sessao.id, req.token);
@@ -1067,79 +1145,170 @@ app.patch('/api/auth/atualizar', autenticar(['cliente', 'prestador']), limitarRe
   res.json(paraPublico(req.sessao.tipo, usuario));
 }));
 
-// Pede a redefinição de senha. A resposta é SEMPRE a mesma, imediata e sem
-// nenhum dado além da mensagem — exista ou não o e-mail (não revela quais
-// e-mails estão cadastrados) e NUNCA contém o link nem o token. O trabalho
-// (gerar token, gravar, enviar e-mail) acontece depois de responder, para que
-// nem o tempo de resposta diferencie e-mails cadastrados de não cadastrados.
+// ETAPA 1 — Pede a redefinição de senha. A resposta é SEMPRE a mesma, imediata
+// e sem nenhum dado além da mensagem — exista ou não o e-mail (não revela quais
+// e-mails estão cadastrados) e NUNCA contém o código. O trabalho (gerar,
+// gravar, enviar) acontece depois de responder, para que nem o tempo de
+// resposta diferencie e-mails cadastrados de não cadastrados. Também é a rota
+// do "Reenviar código".
 app.post('/api/auth/esqueci-senha', limitarRequisicoes(60 * 1000, 3), (req, res) => {
   const { tipo, email } = req.body || {};
   const emailNormalizado = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
   res.json({ mensagem: MENSAGEM_ESQUECI_SENHA });
 
-  if (!emailNormalizado || emailNormalizado.length > 150) return;
+  if (!emailNormalizado || emailNormalizado.length > 150 || !EMAIL_REGEX.test(emailNormalizado)) return;
   setImmediate(() => {
-    processarPedidoRedefinicao(tipo, emailNormalizado, `${req.protocol}://${req.get('host')}`).catch((erro) => {
-      // Só a mensagem do erro: nada de e-mail, token ou link no log.
+    processarPedidoRedefinicao(tipo, emailNormalizado).catch((erro) => {
+      // Só a mensagem do erro: nada de e-mail ou código no log.
       console.warn('[redefinicao] Falha ao processar o pedido:', erro.message);
     });
   });
 });
 
-// Faz o trabalho pesado do "esqueci minha senha" DEPOIS de a resposta já ter sido
-// enviada: acha o usuário, aplica o freio de 1 e-mail por minuto, gera o token
-// (guardando só o hash) e envia o e-mail. Qualquer falha aqui só vai para o log.
-async function processarPedidoRedefinicao(tipo, emailNormalizado, urlDaRequisicao) {
-  const colecao =
-    tipo === 'cliente'
-      ? db.clientes
-      : tipo === 'prestador'
-        ? db.prestadores
-        : [...db.clientes, ...db.prestadores];
+// Faz o trabalho do "esqueci minha senha" DEPOIS de a resposta já ter sido
+// enviada: acha a conta, aplica os freios (1/minuto e 5/hora), invalida códigos
+// e tokens anteriores, grava só o HMAC do novo código e envia o e-mail.
+async function processarPedidoRedefinicao(tipo, emailNormalizado) {
+  // Um pedido novo recomeça a contagem de erros de digitação deste e-mail.
+  falhasCodigoPorEmail.delete(chaveFalhas(emailNormalizado));
 
-  const usuario = colecao.find((u) => u.email.toLowerCase() === emailNormalizado);
-  if (!usuario) return;
-  const tipoUsuario = db.clientes.some((u) => u.id === usuario.id) ? 'cliente' : 'prestador';
+  const conta = localizarContaPorEmail(emailNormalizado, tipo);
+  if (!conta) return;
+  const { usuario, tipo: tipoUsuario } = conta;
 
   const agora = Date.now();
-  // Só tokens ainda válidos interessam; os vencidos são descartados junto.
-  const vigentes = db.redefinicoesSenha.filter((r) => new Date(r.expiraEm).getTime() > agora);
-  const doUsuario = vigentes.filter((r) => r.usuarioId === usuario.id && r.tipo === tipoUsuario);
+  // Registros com mais de 1 h não servem mais nem para contar reenvios.
+  db.codigosRedefinicao = db.codigosRedefinicao.filter((c) => agora - new Date(c.criadoEm).getTime() < 60 * 60 * 1000);
+  const doUsuario = db.codigosRedefinicao.filter((c) => c.usuarioId === usuario.id && c.tipo === tipoUsuario);
 
-  // Freio contra spam de e-mails: se acabou de ser emitido um token para esta
-  // conta, não emite outro agora (não muda nada para quem pede uma vez só).
-  const recente = doUsuario.some(
-    (r) => agora - (new Date(r.expiraEm).getTime() - TOKEN_REDEFINICAO_TTL_MS) < INTERVALO_MIN_NOVO_TOKEN_MS
-  );
-  if (recente) return;
+  // Freio contra spam de e-mails (não muda nada para quem pede uma vez só).
+  if (doUsuario.some((c) => agora - new Date(c.criadoEm).getTime() < CODIGO_INTERVALO_MIN_MS)) return;
+  if (doUsuario.length >= CODIGO_MAX_POR_HORA) return;
 
-  // Um token novo invalida os anteriores da mesma conta.
-  const token = crypto.randomBytes(32).toString('hex');
-  db.redefinicoesSenha = vigentes.filter((r) => !(r.usuarioId === usuario.id && r.tipo === tipoUsuario));
-  db.redefinicoesSenha.push({
-    token: hashTokenRedefinicao(token), // só o hash fica guardado
+  // Um código novo invalida os anteriores (eles ficam no registro, como
+  // "usados", só para a contagem de pedidos por hora) e qualquer token de
+  // redefinição já emitido para esta conta.
+  for (const c of doUsuario) c.usado = true;
+  db.redefinicoesSenha = db.redefinicoesSenha.filter((r) => !(r.usuarioId === usuario.id && r.tipo === tipoUsuario));
+
+  const codigo = gerarCodigoRedefinicao();
+  const id = crypto.randomUUID();
+  const registro = {
+    id,
     tipo: tipoUsuario,
     usuarioId: usuario.id,
-    expiraEm: paraIso(new Date(agora + TOKEN_REDEFINICAO_TTL_MS))
+    codigoHash: hashCodigoRedefinicao(id, codigo),
+    expiraEm: paraIso(new Date(agora + CODIGO_TTL_MS)),
+    tentativas: 0,
+    usado: false,
+    criadoEm: paraIso(new Date(agora))
+  };
+  db.codigosRedefinicao.push(registro);
+  await salvar();
+
+  const resultado = await enviarEmailCodigoRedefinicao({
+    paraEmail: usuario.email,
+    nome: usuario.nome,
+    codigo,
+    minutosValidade: CODIGO_TTL_MS / 60000
+  });
+
+  // Se o e-mail não saiu, o código não serve para nada: remove-o para a pessoa
+  // poder pedir de novo sem esperar o intervalo.
+  if (!resultado.enviado && !resultado.modoDev) {
+    db.codigosRedefinicao = db.codigosRedefinicao.filter((c) => c.id !== id);
+    await salvar();
+  }
+}
+
+// ETAPA 2 — Valida o código de 6 dígitos. Toda a validação é feita aqui. Se
+// estiver certo (e dentro da validade/tentativas), o código é consumido e o
+// servidor emite um token temporário que SÓ serve para redefinir a senha.
+app.post('/api/auth/validar-codigo', limitarRequisicoes(60 * 1000, 10), assincrono(async (req, res) => {
+  const { tipo, email, codigo } = req.body || {};
+  const emailNormalizado = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+  if (!emailNormalizado || emailNormalizado.length > 150 || !codigoComFormatoValido(codigo)) {
+    return res.status(400).json({ erro: ERRO_CODIGO_INCORRETO });
+  }
+  // Bloqueio por e-mail (existindo conta ou não): mesma resposta nos dois casos.
+  if (falhasAtuais(emailNormalizado) >= CODIGO_MAX_TENTATIVAS) {
+    return res.status(429).json({ erro: ERRO_CODIGO_TENTATIVAS });
+  }
+
+  const conta = localizarContaPorEmail(emailNormalizado, tipo);
+  const agora = Date.now();
+  const candidatos = conta
+    ? db.codigosRedefinicao
+        .filter((c) => c.usuarioId === conta.usuario.id && c.tipo === conta.tipo && !c.usado)
+        .sort((x, y) => new Date(y.criadoEm) - new Date(x.criadoEm))
+    : [];
+  const registro = candidatos[0];
+
+  if (!registro) {
+    // Sem código ativo (ou sem conta): conta como erro e bloqueia na MESMA
+    // tentativa em que uma conta real seria bloqueada (a 5ª).
+    registrarFalha(emailNormalizado);
+    if (falhasAtuais(emailNormalizado) >= CODIGO_MAX_TENTATIVAS) {
+      return res.status(429).json({ erro: ERRO_CODIGO_TENTATIVAS });
+    }
+    return res.status(400).json({ erro: ERRO_CODIGO_INCORRETO });
+  }
+  if (new Date(registro.expiraEm).getTime() <= agora) {
+    registro.usado = true;
+    await salvar();
+    return res.status(400).json({ erro: ERRO_CODIGO_EXPIRADO });
+  }
+  if (registro.tentativas >= CODIGO_MAX_TENTATIVAS) {
+    registro.usado = true;
+    await salvar();
+    return res.status(429).json({ erro: ERRO_CODIGO_TENTATIVAS });
+  }
+
+  // A tentativa é contada ANTES de conferir (síncrono, sem "await" no meio):
+  // requisições simultâneas não conseguem passar do limite.
+  registro.tentativas += 1;
+  registrarFalha(emailNormalizado); // desfeita abaixo se o código estiver certo
+
+  const esperado = Buffer.from(registro.codigoHash, 'hex');
+  const recebido = Buffer.from(hashCodigoRedefinicao(registro.id, codigo), 'hex');
+  const confere = esperado.length === recebido.length && crypto.timingSafeEqual(esperado, recebido);
+
+  if (!confere) {
+    const esgotou = registro.tentativas >= CODIGO_MAX_TENTATIVAS;
+    if (esgotou) registro.usado = true; // não vale mais: é preciso pedir outro
+    await salvar();
+    return res
+      .status(esgotou ? 429 : 400)
+      .json({ erro: esgotou ? ERRO_CODIGO_TENTATIVAS : ERRO_CODIGO_INCORRETO });
+  }
+
+  // CÓDIGO CERTO — USO ÚNICO: consumido já, de forma síncrona.
+  falhasCodigoPorEmail.delete(chaveFalhas(emailNormalizado));
+  for (const c of db.codigosRedefinicao) {
+    if (c.usuarioId === registro.usuarioId && c.tipo === registro.tipo) c.usado = true;
+  }
+
+  // Token temporário (256 bits) só para trocar a senha; só o hash é guardado.
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  db.redefinicoesSenha = db.redefinicoesSenha.filter(
+    (r) => !(r.usuarioId === registro.usuarioId && r.tipo === registro.tipo)
+  );
+  db.redefinicoesSenha.push({
+    token: hashTokenRedefinicao(resetToken),
+    tipo: registro.tipo,
+    usuarioId: registro.usuarioId,
+    expiraEm: paraIso(new Date(Date.now() + TOKEN_REDEFINICAO_TTL_MS))
   });
   await salvar();
 
-  // O link do e-mail NUNCA é montado com o cabeçalho Host da requisição em
-  // produção: um atacante poderia pedir a redefinição da conta de outra pessoa
-  // com "Host: site-do-atacante.com" e o e-mail legítimo traria um link para o
-  // site dele (envenenamento do link). Em produção exigimos APP_URL; só em
-  // desenvolvimento o endereço da requisição serve de apoio.
-  const appUrl = process.env.APP_URL || (process.env.NODE_ENV === 'production' ? null : urlDaRequisicao);
-  if (!appUrl) {
-    console.warn('[redefinicao] APP_URL não está definido: e-mail de redefinição NÃO enviado (defina APP_URL em produção).');
-    return;
-  }
-  await enviarEmailRedefinicao({ paraEmail: usuario.email, nome: usuario.nome, tipo: tipoUsuario, token, appUrl });
-}
+  auditar('codigo_redefinicao_validado', { req, tipo: registro.tipo, usuarioId: registro.usuarioId });
+  res.json({ mensagem: 'Código verificado.', resetToken });
+}));
 
-// Conclui a redefinição. Toda a validação é feita aqui no servidor: um token
-// inexistente, inválido, expirado ou já usado recebe exatamente a mesma
+// ETAPA 3 — Conclui a redefinição. Toda a validação é feita aqui no servidor: um
+// token inexistente, inválido, expirado ou já usado recebe exatamente a mesma
 // resposta (400 genérico), sem indicar qual foi o motivo.
 app.post('/api/auth/redefinir-senha', limitarRequisicoes(60 * 1000, 10), assincrono(async (req, res) => {
   const { token, novaSenha } = req.body || {};
@@ -1162,12 +1331,15 @@ app.post('/api/auth/redefinir-senha', limitarRequisicoes(60 * 1000, 10), assincr
     return res.status(400).json({ erro: erroSenha });
   }
 
-  // USO ÚNICO: o token (e qualquer outro pendente desta conta) é descartado
-  // AGORA, de forma síncrona, antes do primeiro "await". Duas requisições
-  // simultâneas com o mesmo token não passam juntas: a segunda já não o encontra.
+  // USO ÚNICO: o token (e qualquer outro pendente desta conta, inclusive
+  // códigos) é descartado AGORA, de forma síncrona, antes do primeiro "await".
+  // Duas requisições simultâneas com o mesmo token não passam juntas.
   db.redefinicoesSenha = db.redefinicoesSenha.filter(
     (r) => !(r.usuarioId === redefinicao.usuarioId && r.tipo === redefinicao.tipo)
   );
+  for (const c of db.codigosRedefinicao) {
+    if (c.usuarioId === redefinicao.usuarioId && c.tipo === redefinicao.tipo) c.usado = true;
+  }
 
   const usuario = buscarUsuario(redefinicao.tipo, redefinicao.usuarioId);
   if (!usuario) {
@@ -1181,6 +1353,7 @@ app.post('/api/auth/redefinir-senha', limitarRequisicoes(60 * 1000, 10), assincr
   encerrarSessoesDoUsuario(redefinicao.tipo, redefinicao.usuarioId);
   await salvar();
 
+  auditar('senha_redefinida', { req, tipo: redefinicao.tipo, usuarioId: redefinicao.usuarioId });
   res.json({ mensagem: 'Senha redefinida com sucesso.' });
 }));
 

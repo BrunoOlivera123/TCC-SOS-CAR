@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol><symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol><symbol id="i-tap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 7-6 2-2 6z"/></symbol><symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></symbol><symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol><symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.6-4.6 4 1.4 6-5.5-3.2L6.5 19.2l1.4-6-4.6-4 6.1-.6L12 3z"/></symbol><symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></symbol><symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol><symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-4 3-6 6.5-6s6 2 6.5 6M17 11a3 3 0 0 0 0-6M21.5 19c-.3-2.6-1.6-4.3-3.5-5"/></symbol><symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></symbol><symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol></defs></svg>
   <!-- Tela de carregamento: única visível por padrão (todas as outras já
        nascem com "oculta"). app.js troca para a tela certa assim que
        terminar de verificar sessão salva + carregar categorias. -->
@@ -112,32 +113,29 @@
     <div class="conteudo conteudo-auth">
       <div class="auth-layout">
         <div class="auth-intro">
-          <img src="img/logo.png" alt="" aria-hidden="true" class="auth-logo" width="520" height="240" />
-          <h1>Precisa de socorro no veículo?</h1>
-          <p class="subtitulo">Peça ajuda ou atenda quem precisa — rápido, simples e com acompanhamento em tempo real.</p>
-          <ul class="auth-destaques">
-            <li class="destaque">
-              <span class="destaque-icone" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
-              </span>
-              <span>Atendimento rápido, perto de você</span>
-            </li>
-            <li class="destaque">
-              <span class="destaque-icone" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-              </span>
-              <span>Prestadores por categoria: mecânico, borracheiro, auto elétrica e guincho</span>
-            </li>
-            <li class="destaque">
-              <span class="destaque-icone" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.6-4.6 4 1.4 6-5.5-3.2L6.5 19.2l1.4-6-4.6-4 6.1-.6L12 3z"/></svg>
-              </span>
-              <span>Acompanhe o status e avalie o atendimento</span>
-            </li>
+          <span class="lp-chip"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg> Socorro automotivo</span>
+          <h1>Socorro para o seu veículo, a poucos toques de distância.</h1>
+          <p class="subtitulo">Descreva o problema e informe onde você está. Prestadores da categoria certa recebem o chamado na hora e você acompanha o atendimento passo a passo.</p>
+          <div class="lp-ctas">
+            <a class="lp-btn" href="#acesso" data-cta="cliente">Encontrar assistência</a>
+            <a class="lp-btn sec" href="#acesso" data-cta="prestador">Sou prestador</a>
+          </div>
+          <ul class="lp-trust">
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg> Mecânico, borracheiro, auto elétrica e guincho</li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg> Acompanhamento do chamado em tempo real</li>
+            <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg> Prestadores aprovados pelo administrador</li>
           </ul>
+          <figure class="lp-mock" aria-label="Exemplo ilustrativo de acompanhamento de um chamado">
+            <figcaption>Exemplo ilustrativo</figcaption>
+            <ol>
+              <li class="ok"><span><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></span><div><b>Chamado aberto</b><small>Problema e localização enviados</small></div></li>
+              <li class="ok"><span><svg class="ic" aria-hidden="true"><use href="#i-wrench"/></svg></span><div><b>Prestador aceitou</b><small>Nome e telefone na sua tela</small></div></li>
+              <li><span><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg></span><div><b>Atendimento concluído</b><small>Avalie de 1 a 5 estrelas</small></div></li>
+            </ol>
+          </figure>
         </div>
 
-        <div class="cartao cartao-auth">
+        <div class="cartao cartao-auth" id="acesso">
           <!-- Título do cartão: "Login" ou "Criar conta" (trocado em app.js, mostrarModoAuth) -->
           <h2 class="titulo-auth" id="titulo-auth">Login</h2>
 
@@ -221,45 +219,113 @@
         </div>
       </div>
     </div>
+
   </section>
 
   <!-- ===================================================
-       TELA: ESQUECI MINHA SENHA
+       RECUPERAÇÃO DE SENHA (3 etapas + confirmação)
+       1) tela-esqueci-senha   -> pede o e-mail e envia o código
+       2) tela-verificar-codigo -> 6 campos para o código
+       3) tela-redefinir-senha -> nova senha (só abre com o token
+          temporário emitido pelo servidor depois do código certo)
+       4) tela-senha-alterada  -> confirmação
+       Ver app.js, seção "Esqueci minha senha".
   ==================================================== -->
   <section id="tela-esqueci-senha" class="tela tela-aux oculta">
     <div class="conteudo conteudo-estreito">
       <div class="cartao">
-        <h2>Esqueceu sua senha?</h2>
-        <p class="subtitulo">Informe seu email cadastrado — Enviaremos um link para você criar uma nova senha.</p>
-        <form id="form-esqueci-senha" class="formulario">
+        <img src="img/logo.png" alt="SOS Car" class="logo-cartao" width="118" height="70" />
+        <h2>Redefinir senha</h2>
+        <p class="subtitulo">Digite o email associado à sua conta e enviaremos um código de verificação.</p>
+        <p id="esqueci-senha-erro" class="mensagem-erro oculto" role="alert"></p>
+        <form id="form-esqueci-senha" class="formulario" novalidate>
           <label>Email
-            <input type="email" name="email" required autocomplete="email" placeholder="seu@email.com" />
+            <input type="email" name="email" required autocomplete="email" inputmode="email" placeholder="seu@email.com" />
           </label>
-          <button type="submit" class="botao-primario">Enviar link de redefinição</button>
+          <button type="submit" class="botao-primario">Enviar código</button>
         </form>
-        <p id="esqueci-senha-sucesso" class="mensagem-sucesso oculto"></p>
         <button type="button" class="botao-secundario btn-voltar">Voltar para o login</button>
       </div>
     </div>
   </section>
 
-  <!-- ===================================================
-       TELA: REDEFINIR SENHA
-       Só é aberta quando a página carrega com "?tipo=...&token=..." na
-       URL (link recebido por e-mail) — ver app.js, função iniciar().
-  ==================================================== -->
+  <section id="tela-verificar-codigo" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao">
+        <img src="img/logo.png" alt="SOS Car" class="logo-cartao" width="118" height="70" />
+        <h2>Verifique seu email</h2>
+        <p class="subtitulo">Enviamos um código de 6 dígitos para o seu email.</p>
+        <p id="codigo-email-destino" class="texto-auxiliar codigo-email-destino"></p>
+        <form id="form-verificar-codigo" class="formulario" novalidate>
+          <div id="codigo-campos" class="codigo-campos" role="group" aria-label="Código de 6 dígitos">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="Dígito 1 de 6" />
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Dígito 2 de 6" />
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Dígito 3 de 6" />
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Dígito 4 de 6" />
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Dígito 5 de 6" />
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="Dígito 6 de 6" />
+          </div>
+          <p id="codigo-status" class="codigo-status" role="status" aria-live="polite"></p>
+          <p id="codigo-erro" class="mensagem-erro oculto" role="alert"></p>
+          <button type="submit" id="btn-validar-codigo" class="botao-primario" disabled>Validar código</button>
+        </form>
+        <p id="codigo-contador" class="texto-auxiliar codigo-contador">Você poderá solicitar um novo código em 60 segundos.</p>
+        <button type="button" id="btn-reenviar-codigo" class="botao-link codigo-reenviar oculto">Reenviar código</button>
+        <button type="button" id="btn-codigo-voltar" class="botao-secundario">Usar outro email</button>
+      </div>
+    </div>
+  </section>
+
   <section id="tela-redefinir-senha" class="tela tela-aux oculta">
     <div class="conteudo conteudo-estreito">
       <div class="cartao">
-        <h2>Criar nova senha</h2>
+        <img src="img/logo.png" alt="SOS Car" class="logo-cartao" width="118" height="70" />
+        <h2>Crie uma nova senha</h2>
         <p class="subtitulo">Escolha uma nova senha para a sua conta.</p>
-        <p id="redefinir-senha-erro" class="mensagem-erro oculto"></p>
-        <form id="form-redefinir-senha" class="formulario">
+        <p id="redefinir-senha-erro" class="mensagem-erro oculto" role="alert"></p>
+        <form id="form-redefinir-senha" class="formulario" novalidate>
           <label>Nova senha
-            <input type="password" name="novaSenha" required minlength="4" autocomplete="new-password" />
+            <div class="campo-senha">
+              <input type="password" name="novaSenha" id="nova-senha" required minlength="4" maxlength="72" autocomplete="new-password" />
+              <button type="button" class="botao-olho" data-toggle-senha aria-label="Mostrar senha" title="Mostrar senha">
+                  <svg class="icone-olho" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path class="traço-olho" d="M4 4L20 20"/>
+                  </svg>
+                </button>
+            </div>
           </label>
-          <button type="submit" class="botao-primario">Redefinir senha</button>
+          <label>Confirmar nova senha
+            <div class="campo-senha">
+              <input type="password" name="confirmarSenha" id="confirmar-senha" required maxlength="72" autocomplete="new-password" />
+              <button type="button" class="botao-olho" data-toggle-senha aria-label="Mostrar senha" title="Mostrar senha">
+                  <svg class="icone-olho" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path class="traço-olho" d="M4 4L20 20"/>
+                  </svg>
+                </button>
+            </div>
+          </label>
+          <ul class="requisitos-senha" id="requisitos-senha" aria-live="polite">
+            <li data-req="tamanho">Entre 4 e 72 caracteres</li>
+            <li data-req="igual">As duas senhas são iguais</li>
+          </ul>
+          <button type="submit" class="botao-primario">Alterar senha</button>
         </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="tela-senha-alterada" class="tela tela-aux oculta">
+    <div class="conteudo conteudo-estreito">
+      <div class="cartao cartao-sucesso">
+        <img src="img/logo.png" alt="SOS Car" class="logo-cartao" width="118" height="70" />
+        <div class="icone-sucesso" aria-hidden="true">✓</div>
+        <h2>Senha alterada com sucesso.</h2>
+        <p class="subtitulo">Você já pode entrar com a sua nova senha.</p>
+        <button type="button" id="btn-senha-alterada-login" class="botao-primario">Voltar para o login</button>
       </div>
     </div>
   </section>

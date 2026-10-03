@@ -102,6 +102,10 @@ const API = (function () {
     logout: () => requisitar('/auth/logout', { method: 'POST' }),
     quemSouEu: () => requisitar('/auth/me'),
     esqueciSenha: (dados) => requisitar('/auth/esqueci-senha', { method: 'POST', body: JSON.stringify(dados) }),
+    // Etapa 2: confere o código de 6 dígitos. Devolve { resetToken } (temporário, só para trocar a senha).
+    validarCodigoRedefinicao: (email, codigo) =>
+      requisitar('/auth/validar-codigo', { method: 'POST', body: JSON.stringify({ email, codigo }) }),
+    // Etapa 3: usa o resetToken para gravar a nova senha. Recebe { token, novaSenha }.
     redefinirSenha: (dados) => requisitar('/auth/redefinir-senha', { method: 'POST', body: JSON.stringify(dados) }),
     googleConfig: () => requisitar('/auth/google/config'),
     // Pede um nonce de uso único; ele é entregue ao Google e volta DENTRO do ID token (anti-replay).
