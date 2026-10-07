@@ -342,9 +342,12 @@ body > .tela:not(.oculta) {
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
   padding-block: 28px;
 }
 .tela-aux > .conteudo > * {
+  width: min(100%, 560px);
   margin-block: auto;
 }
 #admin-login { max-width: 440px; width: 100%; margin-inline: auto; }
