@@ -2111,7 +2111,9 @@ function montarResumoChamado(chamado) {
     endereco: chamado.endereco,
     descricao: chamado.descricao,
     status: chamado.status,
-    dataAbertura: chamado.dataAbertura
+    dataAbertura: chamado.dataAbertura,
+    latitude: chamado.latitude,
+    longitude: chamado.longitude
   };
 }
 

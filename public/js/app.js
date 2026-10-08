@@ -403,6 +403,16 @@
       <dt>Distância</dt><dd>${escaparHtml(distanciaInfo)}</dd>
       <dt>Tempo médio</dt><dd>${escaparHtml(tempoInfo)}</dd>
     `;
+
+    const mapaModal = document.getElementById('mapa-chamado-modal');
+    if (mapaModal && typeof chamado.latitude === 'number' && typeof chamado.longitude === 'number') {
+      Mapa.criarOuAtualizar('mapa-chamado-modal', chamado.latitude, chamado.longitude, 'Local do chamado', chamado.categoriaNome || 'padrao');
+      setTimeout(() => {
+        const instancia = mapModal && mapModal.querySelector('.leaflet-container');
+        if (instancia) instancia.style.minHeight = '100%';
+      }, 0);
+    }
+
     modalConfirmarChamado.classList.remove('oculto');
     return new Promise((resolve) => {
       // Fecha o modal e entrega a resposta (aceitou/cancelou), removendo os listeners.
@@ -2675,6 +2685,8 @@
         const distanciaTexto = c.distanciaKm != null ? `📍 ${formatarKm(c.distanciaKm)} de distância` : 'Distância não disponível';
         const tempoTexto = c.distanciaKm != null ? tempoMedioChegada(c.distanciaKm) : 'Tempo não disponível';
 
+        const mapaId = `mapa-disponivel-${c.id}`;
+
         return `
       <li class="item-chamado">
         <div class="item-chamado-info">
@@ -2689,10 +2701,20 @@
             <span>Cliente: ${escaparHtml(localizacaoCliente)}</span>
           </div>
         </div>
-        <button class="botao-primario" data-visualizar-pedido="${c.id}">Visualizar pedido</button>
+        <div class="item-chamado-lado">
+          <div id="${mapaId}" class="mapa-caixa mapa-mini" aria-label="Mini mapa do pedido"></div>
+          <button class="botao-primario" data-visualizar-pedido="${c.id}">Visualizar pedido</button>
+        </div>
       </li>`;
       })
       .join('');
+
+    listaOrdenada.forEach((c) => {
+      const mapaId = `mapa-disponivel-${c.id}`;
+      if (typeof c.latitude === 'number' && typeof c.longitude === 'number') {
+        Mapa.criarOuAtualizar(mapaId, c.latitude, c.longitude, 'Local do chamado', c.categoriaNome || 'padrao');
+      }
+    });
   }
 
   // Desenha o card do chamado que o prestador já aceitou, com os dados

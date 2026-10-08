@@ -163,17 +163,22 @@ h1, h2, h3 {
 .tela:not(.oculta) .cartao,
 .tela:not(.oculta) .dash-card,
 .tela:not(.oculta) .status-banner,
-.tela:not(.oculta) .lista-chamados .item-chamado,
-.tela:not(.oculta) .lista-historico .item-historico {
+.tela:not(.oculta) .lista-chamados .item-chamado {
   animation: bloco-entrada 320ms var(--ease-suave) both;
+}
+
+/* O histórico recente e o card compacto não devem piscar ao atualizar em polling. */
+.tela:not(.oculta) .dash-card-historico,
+.tela:not(.oculta) .dash-card-historico .item-historico,
+.lista-historico-compacta .item-historico {
+  animation: none !important;
+  opacity: 1;
+  transform: none;
 }
 
 .tela:not(.oculta) .lista-chamados .item-chamado:nth-child(2) { animation-delay: 30ms; }
 .tela:not(.oculta) .lista-chamados .item-chamado:nth-child(3) { animation-delay: 60ms; }
 .tela:not(.oculta) .lista-chamados .item-chamado:nth-child(4) { animation-delay: 90ms; }
-.tela:not(.oculta) .lista-historico .item-historico:nth-child(2) { animation-delay: 30ms; }
-.tela:not(.oculta) .lista-historico .item-historico:nth-child(3) { animation-delay: 60ms; }
-.tela:not(.oculta) .lista-historico .item-historico:nth-child(4) { animation-delay: 90ms; }
 
 @keyframes bloco-entrada {
   from {
@@ -954,6 +959,20 @@ body > .tela:not(.oculta) {
   box-shadow: var(--shadow-sm);
   transition: border-color var(--dur) ease, box-shadow var(--dur) ease, transform var(--dur) ease;
 }
+.item-chamado {
+  align-items: stretch;
+}
+.item-chamado-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.item-chamado-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 180px;
+  min-width: 170px;
+}
 .item-historico > div {
   flex: 1;
   min-width: 0;
@@ -1036,10 +1055,19 @@ body > .tela:not(.oculta) {
 }
 
 .rodape {
+  width: min(1200px, calc(100% - 28px));
+  margin: 18px auto 0;
+  padding: 18px 20px 12px;
   text-align: center;
   color: var(--text-secondary);
   font-size: 12px;
-  padding: 24px 20px;
+  border-top: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.02);
+  border-radius: 12px 12px 0 0;
+}
+
+.rodape p {
+  margin: 10px 0 0;
 }
 
 /* ---------- Notificações (toast), substituem alert() nativo ---------- */
@@ -1331,6 +1359,16 @@ body > .tela:not(.oculta) {
   border: 1px solid var(--border);
   margin-bottom: 16px;
   background: var(--background);
+}
+.mapa-mini {
+  height: 110px;
+  margin-bottom: 0;
+  min-width: 170px;
+  flex: 0 0 110px;
+}
+.mapa-mini-modal {
+  height: 155px;
+  margin: 10px 0 12px;
 }
 html.mapa-fullscreen,
 body.mapa-fullscreen {
