@@ -249,6 +249,13 @@ const Mapa = (function () {
       return null;
     }
 
+    const instanciaAtual = instancias[elementoId];
+    const containerAtual = instanciaAtual?.mapa?.getContainer?.();
+    if (instanciaAtual && containerAtual && containerAtual !== elemento) {
+      instanciaAtual.mapa.remove();
+      delete instancias[elementoId];
+    }
+
     if (instancias[elementoId]) return instancias[elementoId];
 
     const mapa = L.map(elemento, { zoomControl: false }).setView([latitude, longitude], 15);

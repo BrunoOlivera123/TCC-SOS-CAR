@@ -141,14 +141,11 @@
     }
   }
 
-  // Roda "atualizar" agora e depois a cada "intervaloMs" (o polling que
-  // mantém os painéis em dia). Diferente de um setInterval solto:
-  //  - não empilha requisições: se a anterior ainda não terminou (rede
-  //    lenta), o tique é pulado;
-  //  - erros não viram "unhandled rejection": avisa com um toast na
-  //    primeira falha e fica quieto até a conexão voltar, em vez de
-  //    repetir o aviso a cada 3 segundos.
-  function iniciarAtualizacaoAutomatica(atualizar, intervaloMs) {
+  // Atualização automática desativada por pedido do usuário: o painel só
+  // faz uma sincronização imediata quando entrar na tela e não repete em
+  // background. O botão manual continua disponível para recarregar quando
+  // quiser.
+  function iniciarAtualizacaoAutomatica(atualizar) {
     let emAndamento = false;
     let avisouFalha = false;
     const tique = async () => {
@@ -156,13 +153,11 @@
       emAndamento = true;
       try {
         await atualizar();
-        // A Central de Notificações viaja no MESMO ciclo (nenhum timer/conexão a mais).
         if (usuarioTipoAtual === 'cliente' || usuarioTipoAtual === 'prestador') {
           await atualizarNotificacoes().catch(() => {});
         }
         avisouFalha = false;
       } catch (err) {
-        // Sessão expirada: o evento "sessao-expirada" já cuidou de tudo.
         if (usuarioTipoAtual && !avisouFalha) {
           avisouFalha = true;
           toast(err.message);
@@ -172,7 +167,7 @@
       }
     };
     tique();
-    intervaloAtualizacao = setInterval(tique, intervaloMs);
+    intervaloAtualizacao = null;
   }
 
   // Traduz o status técnico (igual ao salvo no banco) para um texto

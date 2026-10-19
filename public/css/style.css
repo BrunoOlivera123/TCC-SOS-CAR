@@ -1148,10 +1148,27 @@ body > .tela:not(.oculta) {
   }
 }
 .modal-chamado-conteudo {
-  max-width: 480px;
+  max-width: 760px;
 }
-.modal-chamado-conteudo .detalhes {
+.modal-chamado-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr);
+  gap: 18px;
+  align-items: start;
   margin-top: 18px;
+}
+.modal-chamado-grid .detalhes {
+  margin: 0;
+}
+.modal-chamado-grid .mapa-caixa {
+  margin: 0;
+  height: 100%;
+  min-height: 220px;
+}
+@media (max-width: 560px) {
+  .modal-chamado-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .modal-conteudo p {
   margin: 0 0 20px;
